@@ -28,6 +28,7 @@ def write_workbook(
     _write_sheet(workbook, profile.sql, result.sql_queries, profile.rtl)
 
     out = Path(path)
+    out.parent.mkdir(parents=True, exist_ok=True)
     workbook.save(out)
     return out
 

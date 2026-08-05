@@ -19,10 +19,16 @@ def main() -> None:
     )
     parser.add_argument("spec", help="Path to the specification (.docx / .xlsx / .pdf)")
     parser.add_argument("tag", help="Task tag to generate scenarios for")
-    parser.add_argument("output", help="Output .xlsx path")
+    parser.add_argument(
+        "output",
+        nargs="?",
+        default=None,
+        help="Output .xlsx path (default: output/STD_<tag>.xlsx)",
+    )
     args = parser.parse_args()
 
-    out = generate_std(args.spec, args.tag, args.output)
+    output = args.output or f"output/STD_{args.tag}.xlsx"
+    out = generate_std(args.spec, args.tag, output)
     print(f"Wrote {out}")
 
 

@@ -72,6 +72,11 @@ def test_manual_columns_left_blank(tmp_path):
         assert ws.cell(row=2, column=col).value is None
 
 
+def test_creates_missing_output_directory(tmp_path):
+    out = write_workbook(_sample_result(), tmp_path / "output" / "STD_40012.xlsx")
+    assert out.exists()
+
+
 def test_sql_sheet_values(tmp_path):
     out = write_workbook(_sample_result(), tmp_path / "std.xlsx")
     ws = load_workbook(out)["SQL"]
