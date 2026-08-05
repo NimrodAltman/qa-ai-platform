@@ -9,6 +9,7 @@ Claude API and constrains the output to a JSON schema.
 from __future__ import annotations
 
 import json
+import os
 from typing import Callable
 
 from ..base import BaseAgent
@@ -21,6 +22,11 @@ from .prompt import build_system_prompt, build_user_prompt
 Completer = Callable[[str, str], str]
 
 DEFAULT_MODEL = "claude-opus-5"
+
+
+def _default_model() -> str:
+    """The model to use — from the QA_MODEL env var, else Claude Opus 5."""
+    return os.environ.get("QA_MODEL", DEFAULT_MODEL)
 
 _SCENARIO_PROPS = {
     "entity": {"type": "string"},
@@ -70,10 +76,12 @@ class StdGeneratorAgent(BaseAgent):
     def __init__(
         self,
         completer: Completer | None = None,
-        model: str = DEFAULT_MODEL,
+        model: str | None = None,
         profile: Profile = CRM_HEBREW,
     ) -> None:
+        model = model or _default_model()
         self._completer = completer or _anthropic_completer(model)
+        self.model = model
         self.profile = profile
 
     def run(

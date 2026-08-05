@@ -9,10 +9,13 @@ from __future__ import annotations
 
 import argparse
 
+from dotenv import load_dotenv
+
 from .pipeline import generate_std
 
 
 def main() -> None:
+    load_dotenv()  # pick up ANTHROPIC_API_KEY and optional QA_MODEL from .env
     parser = argparse.ArgumentParser(
         prog="qa_agents.std_generator",
         description="Generate an STD (test scenarios + SQL) from a specification.",

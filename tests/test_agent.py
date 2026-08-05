@@ -72,3 +72,15 @@ def test_parse_std_defaults_notes_when_missing():
 
 def test_agent_is_registered():
     assert get_agent("std_generator") is StdGeneratorAgent
+
+
+def test_model_defaults_to_opus(monkeypatch):
+    monkeypatch.delenv("QA_MODEL", raising=False)
+    agent = StdGeneratorAgent(completer=lambda s, u: "{}")
+    assert agent.model == "claude-opus-5"
+
+
+def test_model_from_env(monkeypatch):
+    monkeypatch.setenv("QA_MODEL", "claude-haiku-4-5")
+    agent = StdGeneratorAgent(completer=lambda s, u: "{}")
+    assert agent.model == "claude-haiku-4-5"

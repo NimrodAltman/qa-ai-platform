@@ -85,7 +85,9 @@ The suite mocks the LLM, so it needs no API key and incurs no cost.
 ## Powered by
 
 [Claude](https://www.anthropic.com/) (Anthropic API), default model `claude-opus-5`.
-The `anthropic` SDK is imported lazily, so tests and CI run without it configured.
+Set `QA_MODEL` in `.env` to use a different model (e.g. `claude-sonnet-5` or
+`claude-haiku-4-5` for cheaper runs). The `anthropic` SDK is imported lazily, so
+tests and CI run without it configured.
 
 ## Project structure
 
