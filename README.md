@@ -60,6 +60,20 @@ from qa_agents.std_generator.pipeline import generate_std
 generate_std("spec.docx", tag="40012", output_path="std.xlsx")
 ```
 
+## Web UI
+
+A local web interface (FastAPI) exposes the "Run Agent" screen — upload a spec,
+pick options, and download the STD:
+
+```bash
+python -m uvicorn qa_agents.web.app:app --port 8000
+# open http://localhost:8000
+```
+
+Options mirror the product mockups: execution mode (specific tag / whole spec),
+output type (scenarios / SQL / both), and a task number for the file name. The
+API key is read from a local `.env`; generation runs server-side.
+
 ## Testing
 
 ```bash
@@ -80,20 +94,23 @@ src/qa_agents/
 ├── models.py            # shared data contract (Scenario, SqlQuery, StdResult)
 ├── base.py              # BaseAgent + registry — the extension seam
 ├── extraction.py        # .docx / .xlsx / .pdf → structured text
-└── std_generator/
-    ├── profile.py       # output profile (sheet + column layout as data)
-    ├── prompt.py        # QA persona and domain rules
-    ├── agent.py         # StdGeneratorAgent (LLM → StdResult)
-    ├── excel_writer.py  # StdResult + profile → .xlsx
-    ├── pipeline.py      # extract → agent → excel
-    └── __main__.py      # CLI
+├── std_generator/
+│   ├── profile.py       # output profile (sheet + column layout as data)
+│   ├── prompt.py        # QA persona and domain rules
+│   ├── agent.py         # StdGeneratorAgent (LLM → StdResult)
+│   ├── excel_writer.py  # StdResult + profile → .xlsx
+│   ├── pipeline.py      # extract → agent → excel
+│   └── __main__.py      # CLI
+└── web/                 # FastAPI app + Run Agent UI
+    ├── app.py
+    └── static/index.html
 tests/                   # unit + end-to-end tests (mocked LLM)
-examples/                # a fully fictional demo specification
+examples/                # fully fictional demo specifications
 ```
 
 ## Roadmap
 
+- Additional hub screens (run history, output center, feedback, health).
 - Additional agents on the same base (SQL population, spec analysis).
 - Multi-profile support so a new organization is a config file, not code.
-- Execution modes (scenarios only / SQL only).
 ```

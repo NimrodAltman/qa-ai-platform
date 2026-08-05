@@ -42,10 +42,30 @@ def build_system_prompt(profile: Profile) -> str:
     return _SYSTEM
 
 
-def build_user_prompt(spec_text: str, tag: str) -> str:
-    """Return the user prompt carrying the specification and the task tag."""
+def build_user_prompt(
+    spec_text: str,
+    tag: str | None = None,
+    scenarios: bool = True,
+    sql: bool = True,
+) -> str:
+    """Return the user prompt for the specification.
+
+    ``tag`` selects a specific task tag; ``None`` means cover the whole spec.
+    ``scenarios`` / ``sql`` select which outputs to produce.
+    """
+    if tag:
+        scope = f'תיוג משימה: {tag}\nהפק עבור התיוג הנ"ל בלבד.'
+    else:
+        scope = "מצב הרצה: כלל האפיון. הפק עבור כל התיוגים/התהליכים שמופיעים באפיון."
+
+    if scenarios and sql:
+        outputs = "הפק תסריטי בדיקה ושאילתות SQL."
+    elif scenarios:
+        outputs = "הפק תסריטי בדיקה בלבד. החזר את מערך sql_queries ריק."
+    else:
+        outputs = "הפק שאילתות SQL בלבד. החזר את מערך scenarios ריק."
+
     return (
-        f"תיוג משימה: {tag}\n\n"
-        f"להלן תוכן האפיון. הפק תסריטי בדיקה ושאילתות SQL עבור התיוג הנ\"ל בלבד.\n\n"
+        f"{scope}\n{outputs}\n\n"
         f"--- אפיון ---\n{spec_text}"
     )

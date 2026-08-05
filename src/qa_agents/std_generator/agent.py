@@ -76,10 +76,20 @@ class StdGeneratorAgent(BaseAgent):
         self._completer = completer or _anthropic_completer(model)
         self.profile = profile
 
-    def run(self, spec_text: str, tag: str) -> StdResult:
-        """Generate scenarios and SQL for ``tag`` from ``spec_text``."""
+    def run(
+        self,
+        spec_text: str,
+        tag: str | None = None,
+        scenarios: bool = True,
+        sql: bool = True,
+    ) -> StdResult:
+        """Generate an STD from ``spec_text``.
+
+        ``tag`` selects a specific task tag (``None`` = whole spec);
+        ``scenarios`` / ``sql`` select which outputs to produce.
+        """
         system = build_system_prompt(self.profile)
-        user = build_user_prompt(spec_text, tag)
+        user = build_user_prompt(spec_text, tag=tag, scenarios=scenarios, sql=sql)
         raw = self._completer(system, user)
         return parse_std(raw)
 

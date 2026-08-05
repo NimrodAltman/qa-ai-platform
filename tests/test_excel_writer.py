@@ -1,5 +1,6 @@
 """Tests for the Excel engine — round-trips a workbook and inspects it."""
 
+import pytest
 from openpyxl import load_workbook
 
 from qa_agents.models import Scenario, SqlQuery, StdResult
@@ -70,6 +71,24 @@ def test_manual_columns_left_blank(tmp_path):
     # columns 8-11 (תוצאת בדיקה, הערות, ת.הרצה, סבב) are manual → empty
     for col in range(8, 12):
         assert ws.cell(row=2, column=col).value is None
+
+
+def test_include_only_sql(tmp_path):
+    out = write_workbook(_sample_result(), tmp_path / "sql.xlsx", include_scenarios=False)
+    assert load_workbook(out).sheetnames == ["SQL"]
+
+
+def test_include_only_scenarios(tmp_path):
+    out = write_workbook(_sample_result(), tmp_path / "sc.xlsx", include_sql=False)
+    assert load_workbook(out).sheetnames == ["תסריטים"]
+
+
+def test_requires_at_least_one_sheet(tmp_path):
+    with pytest.raises(ValueError):
+        write_workbook(
+            _sample_result(), tmp_path / "x.xlsx",
+            include_scenarios=False, include_sql=False,
+        )
 
 
 def test_creates_missing_output_directory(tmp_path):

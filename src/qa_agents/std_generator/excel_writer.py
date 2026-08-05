@@ -18,14 +18,27 @@ from .profile import CRM_HEBREW, ROW_NUMBER, Profile, SheetSpec
 
 
 def write_workbook(
-    result: StdResult, path: str | Path, profile: Profile = CRM_HEBREW
+    result: StdResult,
+    path: str | Path,
+    profile: Profile = CRM_HEBREW,
+    include_scenarios: bool = True,
+    include_sql: bool = True,
 ) -> Path:
-    """Write ``result`` to an ``.xlsx`` file and return its path."""
+    """Write ``result`` to an ``.xlsx`` file and return its path.
+
+    ``include_scenarios`` / ``include_sql`` choose which sheets to write; at
+    least one must be requested.
+    """
+    if not (include_scenarios or include_sql):
+        raise ValueError("At least one of scenarios / SQL must be included")
+
     workbook = Workbook()
     workbook.remove(workbook.active)  # drop the default empty sheet
 
-    _write_sheet(workbook, profile.scenarios, result.scenarios, profile.rtl)
-    _write_sheet(workbook, profile.sql, result.sql_queries, profile.rtl)
+    if include_scenarios:
+        _write_sheet(workbook, profile.scenarios, result.scenarios, profile.rtl)
+    if include_sql:
+        _write_sheet(workbook, profile.sql, result.sql_queries, profile.rtl)
 
     out = Path(path)
     out.parent.mkdir(parents=True, exist_ok=True)
