@@ -1,6 +1,11 @@
 """Tests for prompt construction — execution mode and output-type selection."""
 
-from qa_agents.std_generator.prompt import build_user_prompt
+from qa_agents.std_generator.profile import CRM_HEBREW
+from qa_agents.std_generator.prompt import build_system_prompt, build_user_prompt
+
+
+def test_system_prompt_demands_exhaustive_coverage():
+    assert "כיסוי ממצה" in build_system_prompt(CRM_HEBREW)
 
 
 def test_specific_tag_mode():
