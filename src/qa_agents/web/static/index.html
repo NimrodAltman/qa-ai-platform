@@ -138,9 +138,11 @@
     const file = document.getElementById('file').files[0];
     const tag = document.getElementById('tag').value.trim();
     const task = document.getElementById('task').value.trim();
+    const selectedMode = mode();    // snapshot the selections at submit time so a
+    const selectedOut = outType();  // change during generation can't desync the file name
 
     if (!file) { setStatus('err', '❌ יש לבחור מסמך אפיון'); return; }
-    if (mode() === 'tag' && !tag) { setStatus('err', '❌ במצב "תיוג ספציפי" חובה להזין מספר תיוג'); return; }
+    if (selectedMode === 'tag' && !tag) { setStatus('err', '❌ במצב "תיוג ספציפי" חובה להזין מספר תיוג'); return; }
     const nameKey = task || tag;
     if (!nameKey) { setStatus('err', '❌ יש להזין מספר משימה או תיוג לשם הקובץ'); return; }
 
@@ -149,10 +151,10 @@
 
     const data = new FormData();
     data.append('file', file);
-    data.append('mode', mode());
+    data.append('mode', selectedMode);
     data.append('tag', tag);
     data.append('task_number', task);
-    data.append('output_type', outType());
+    data.append('output_type', selectedOut);
 
     try {
       const res = await fetch('/api/generate', { method: 'POST', body: data });
@@ -164,7 +166,7 @@
       }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
-      const suffix = outType() === 'both' ? 'scenarios_sql' : outType();
+      const suffix = selectedOut === 'both' ? 'scenarios_sql' : selectedOut;
       const name = 'STD_' + nameKey + '_' + suffix + '.xlsx';
       setStatus('ok',
         '✅ הקובץ נוצר בהצלחה!' +
