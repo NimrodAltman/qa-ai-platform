@@ -19,6 +19,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse
 
+from . import store
 from ..extraction import SUPPORTED
 from ..std_generator.pipeline import default_output_name, generate_std
 
@@ -81,4 +82,18 @@ async def generate(
     except Exception as exc:  # surface generation failures to the UI
         raise HTTPException(status_code=500, detail=f"ההפקה נכשלה: {exc}")
 
+    store.add_run(tag.strip() or None, task_number.strip(), output_type, str(out))
     return FileResponse(out, filename=out.name, media_type=_XLSX_MIME)
+
+
+@app.get("/api/runs")
+def runs() -> list[dict]:
+    return store.list_runs()
+
+
+@app.get("/api/runs/{run_id}/download")
+def download_run(run_id: int) -> FileResponse:
+    run = store.get_run(run_id)
+    if run is None or not Path(run["path"]).is_file():
+        raise HTTPException(status_code=404, detail="התוצר לא נמצא")
+    return FileResponse(run["path"], filename=run["filename"], media_type=_XLSX_MIME)

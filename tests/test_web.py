@@ -1,12 +1,20 @@
 """Tests for the FastAPI web layer (generation mocked — no API call)."""
 
+import pytest
 from fastapi.testclient import TestClient
 
 from qa_agents.models import StdResult
 from qa_agents.std_generator.excel_writer import write_workbook
 from qa_agents.web import app as webapp
+from qa_agents.web import store as webstore
 
 client = TestClient(webapp.app)
+
+
+@pytest.fixture(autouse=True)
+def _isolate_db(tmp_path, monkeypatch):
+    """Point the run store at a throwaway DB for every web test."""
+    monkeypatch.setattr(webstore, "DB_PATH", tmp_path / "runs.db")
 
 
 def test_health():
@@ -65,3 +73,24 @@ def test_generate_rejects_unsupported_extension():
     files = {"file": ("spec.txt", b"dummy", "text/plain")}
     res = client.post("/api/generate", data={"tag": "999"}, files=files)
     assert res.status_code == 400
+
+
+def test_runs_endpoint_lists_a_generated_run(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        webapp, "generate_std",
+        lambda *a, **k: write_workbook(StdResult(), tmp_path / "STD_x.xlsx"),
+    )
+    files = {"file": ("spec.docx", b"dummy", "application/octet-stream")}
+    client.post("/api/generate", data={"tag": "40100", "output_type": "both"}, files=files)
+
+    res = client.get("/api/runs")
+    assert res.status_code == 200
+    data = res.json()
+    assert len(data) == 1
+    assert data[0]["output_type"] == "both"
+    assert data[0]["tag"] == "40100"
+
+
+def test_download_missing_run_returns_404():
+    res = client.get("/api/runs/999999/download")
+    assert res.status_code == 404
