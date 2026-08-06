@@ -91,6 +91,11 @@ def runs() -> list[dict]:
     return store.list_runs()
 
 
+@app.get("/api/stats")
+def stats() -> dict:
+    return store.run_stats()
+
+
 @app.get("/api/runs/{run_id}/download")
 def download_run(run_id: int) -> FileResponse:
     run = store.get_run(run_id)

@@ -94,3 +94,11 @@ def test_runs_endpoint_lists_a_generated_run(tmp_path, monkeypatch):
 def test_download_missing_run_returns_404():
     res = client.get("/api/runs/999999/download")
     assert res.status_code == 404
+
+
+def test_stats_endpoint():
+    res = client.get("/api/stats")
+    assert res.status_code == 200
+    body = res.json()
+    assert "total" in body
+    assert set(body["by_type"]) == {"both", "scenarios", "sql"}

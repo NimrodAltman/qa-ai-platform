@@ -66,3 +66,16 @@ def get_run(run_id: int) -> dict | None:
     with _connect() as conn:
         row = conn.execute("SELECT * FROM runs WHERE id = ?", (run_id,)).fetchone()
         return dict(row) if row else None
+
+
+def run_stats() -> dict:
+    """Return aggregate counts for the dashboard."""
+    with _connect() as conn:
+        total = conn.execute("SELECT COUNT(*) FROM runs").fetchone()[0]
+        rows = conn.execute(
+            "SELECT output_type, COUNT(*) AS c FROM runs GROUP BY output_type"
+        ).fetchall()
+    by_type = {"both": 0, "scenarios": 0, "sql": 0}
+    for row in rows:
+        by_type[row["output_type"]] = row["c"]
+    return {"total": total, "by_type": by_type}

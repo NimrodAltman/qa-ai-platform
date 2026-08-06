@@ -32,3 +32,12 @@ def test_list_is_newest_first():
     store.add_run("1", "1", "both", "output/a.xlsx")
     second = store.add_run("2", "2", "sql", "output/b.xlsx")
     assert store.list_runs()[0]["id"] == second
+
+
+def test_run_stats_counts_by_type():
+    store.add_run("1", "1", "both", "output/a.xlsx")
+    store.add_run("2", "2", "both", "output/b.xlsx")
+    store.add_run("3", "3", "sql", "output/c.xlsx")
+    stats = store.run_stats()
+    assert stats["total"] == 3
+    assert stats["by_type"] == {"both": 2, "scenarios": 0, "sql": 1}
