@@ -58,7 +58,7 @@ def test_generate_maps_mode_and_output_type(tmp_path, monkeypatch):
     assert captured["tag"] is None          # whole-spec mode
     assert captured["scenarios"] is False    # SQL only
     assert captured["sql"] is True
-    assert captured["output_path"].endswith("STD_77_sql.xlsx")
+    assert "STD_77_sql" in captured["output_path"]  # unique path per run
 
 
 def test_tag_mode_requires_tag():

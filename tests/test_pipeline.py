@@ -3,6 +3,7 @@
 import json
 
 import docx
+import pytest
 from openpyxl import load_workbook
 
 from qa_agents.std_generator.agent import StdGeneratorAgent
@@ -32,6 +33,17 @@ _CANNED = json.dumps(
     },
     ensure_ascii=False,
 )
+
+
+def test_generate_std_raises_on_empty_result(tmp_path):
+    document = docx.Document()
+    document.add_paragraph("תיוג 1: משהו.")
+    spec = tmp_path / "spec.docx"
+    document.save(spec)
+
+    empty_agent = StdGeneratorAgent(completer=lambda s, u: '{"scenarios": [], "sql_queries": []}')
+    with pytest.raises(ValueError):
+        generate_std(spec, "1", tmp_path / "out.xlsx", agent=empty_agent)
 
 
 def test_default_output_name_encodes_selection():

@@ -9,15 +9,16 @@ from .agent import StdGeneratorAgent
 from .excel_writer import write_workbook
 
 
+def output_suffix(scenarios: bool, sql: bool) -> str:
+    """The name suffix encoding which outputs are included."""
+    if scenarios and sql:
+        return "scenarios_sql"
+    return "scenarios" if scenarios else "sql"
+
+
 def default_output_name(key: str, scenarios: bool, sql: bool) -> str:
     """Build the output path, encoding which outputs it contains in the name."""
-    if scenarios and sql:
-        suffix = "scenarios_sql"
-    elif scenarios:
-        suffix = "scenarios"
-    else:
-        suffix = "sql"
-    return f"output/STD_{key}_{suffix}.xlsx"
+    return f"output/STD_{key}_{output_suffix(scenarios, sql)}.xlsx"
 
 
 def generate_std(
@@ -38,6 +39,15 @@ def generate_std(
     agent = agent or StdGeneratorAgent()
     spec_text = extract(spec_path)
     result = agent.run(spec_text, tag=tag, scenarios=scenarios, sql=sql)
+
+    produced = (len(result.scenarios) if scenarios else 0) + (
+        len(result.sql_queries) if sql else 0
+    )
+    if produced == 0:
+        raise ValueError(
+            "הסוכן לא הפיק תוצרים לתיוג המבוקש. ודא שהתיוג קיים באפיון ונסה שוב."
+        )
+
     return write_workbook(
         result,
         output_path,

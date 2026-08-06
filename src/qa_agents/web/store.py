@@ -40,10 +40,16 @@ def add_run(
     task_number: str,
     output_type: str,
     path: str,
+    filename: str | None = None,
     status: str = "completed",
 ) -> int:
-    """Record a completed run and return its id."""
-    filename = Path(path).name
+    """Record a completed run and return its id.
+
+    ``path`` is the (unique) file on disk; ``filename`` is the friendly name
+    shown and used when downloading (defaults to the path's basename).
+    """
+    if filename is None:
+        filename = Path(path).name
     created_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
     with _connect() as conn:
         cur = conn.execute(

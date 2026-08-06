@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import shutil
 import tempfile
+import uuid
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -21,7 +22,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 
 from . import store
 from ..extraction import SUPPORTED
-from ..std_generator.pipeline import default_output_name, generate_std
+from ..std_generator.pipeline import generate_std, output_suffix
 
 load_dotenv()  # pick up ANTHROPIC_API_KEY from a local .env for convenience
 
@@ -66,24 +67,24 @@ async def generate(
     scenarios = output_type in ("both", "scenarios")
     sql = output_type in ("both", "sql")
     agent_tag = tag.strip() if mode == "tag" else None
+    out_suffix = output_suffix(scenarios, sql)
+    display_name = f"STD_{name_key}_{out_suffix}.xlsx"
+    # a unique path per run so repeated runs don't overwrite each other's output
+    unique_path = f"output/STD_{name_key}_{out_suffix}_{uuid.uuid4().hex[:8]}.xlsx"
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
         shutil.copyfileobj(file.file, tmp)
         spec_path = tmp.name
 
     try:
-        out = generate_std(
-            spec_path,
-            agent_tag,
-            default_output_name(name_key, scenarios, sql),
-            scenarios=scenarios,
-            sql=sql,
-        )
+        out = generate_std(spec_path, agent_tag, unique_path, scenarios=scenarios, sql=sql)
     except Exception as exc:  # surface generation failures to the UI
         raise HTTPException(status_code=500, detail=f"ההפקה נכשלה: {exc}")
 
-    store.add_run(tag.strip() or None, task_number.strip(), output_type, str(out))
-    return FileResponse(out, filename=out.name, media_type=_XLSX_MIME)
+    store.add_run(
+        tag.strip() or None, task_number.strip(), output_type, str(out), filename=display_name
+    )
+    return FileResponse(out, filename=display_name, media_type=_XLSX_MIME)
 
 
 @app.get("/api/runs")
