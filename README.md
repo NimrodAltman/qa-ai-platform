@@ -49,7 +49,8 @@ python examples/make_demo_spec.py
 # run the agent (requires ANTHROPIC_API_KEY)
 export ANTHROPIC_API_KEY=sk-ant-...
 python -m qa_agents.std_generator examples/demo_spec.docx 40012
-# → writes output/STD_40012.xlsx  (pass a 4th argument for a custom path)
+# → writes output/STD_40012_scenarios_sql.xlsx
+#   (--outputs scenarios|sql changes the suffix; pass a 4th arg for a custom path)
 ```
 
 Use it as a library:

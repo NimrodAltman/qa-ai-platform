@@ -20,7 +20,7 @@ from fastapi import FastAPI, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse
 
 from ..extraction import SUPPORTED
-from ..std_generator.pipeline import generate_std
+from ..std_generator.pipeline import default_output_name, generate_std
 
 load_dotenv()  # pick up ANTHROPIC_API_KEY from a local .env for convenience
 
@@ -74,7 +74,7 @@ async def generate(
         out = generate_std(
             spec_path,
             agent_tag,
-            f"output/STD_{name_key}.xlsx",
+            default_output_name(name_key, scenarios, sql),
             scenarios=scenarios,
             sql=sql,
         )

@@ -112,7 +112,7 @@
     <div class="status" id="status"></div>
   </div>
 
-  <div class="foot">רץ מקומית · הליבה זהה ל-CLI · התוצר נשמר גם ב-output/STD_&lt;מספר&gt;.xlsx</div>
+  <div class="foot">רץ מקומית · הליבה זהה ל-CLI · שם הקובץ מציין את התוכן: STD_&lt;מספר&gt;_scenarios / _sql / _scenarios_sql</div>
 </div>
 
 <script>
@@ -164,7 +164,8 @@
       }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
-      const name = 'STD_' + nameKey + '.xlsx';
+      const suffix = outType() === 'both' ? 'scenarios_sql' : outType();
+      const name = 'STD_' + nameKey + '_' + suffix + '.xlsx';
       setStatus('ok',
         '✅ הקובץ נוצר בהצלחה!' +
         '<br><a class="dl" href="' + url + '" download="' + name + '">⬇ הורד את ' + name + '</a>');

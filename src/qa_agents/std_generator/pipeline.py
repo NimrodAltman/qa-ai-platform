@@ -9,6 +9,17 @@ from .agent import StdGeneratorAgent
 from .excel_writer import write_workbook
 
 
+def default_output_name(key: str, scenarios: bool, sql: bool) -> str:
+    """Build the output path, encoding which outputs it contains in the name."""
+    if scenarios and sql:
+        suffix = "scenarios_sql"
+    elif scenarios:
+        suffix = "scenarios"
+    else:
+        suffix = "sql"
+    return f"output/STD_{key}_{suffix}.xlsx"
+
+
 def generate_std(
     spec_path: str | Path,
     tag: str | None,

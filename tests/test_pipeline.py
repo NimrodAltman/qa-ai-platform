@@ -6,7 +6,7 @@ import docx
 from openpyxl import load_workbook
 
 from qa_agents.std_generator.agent import StdGeneratorAgent
-from qa_agents.std_generator.pipeline import generate_std
+from qa_agents.std_generator.pipeline import default_output_name, generate_std
 
 _CANNED = json.dumps(
     {
@@ -32,6 +32,12 @@ _CANNED = json.dumps(
     },
     ensure_ascii=False,
 )
+
+
+def test_default_output_name_encodes_selection():
+    assert default_output_name("1", True, True) == "output/STD_1_scenarios_sql.xlsx"
+    assert default_output_name("1", True, False) == "output/STD_1_scenarios.xlsx"
+    assert default_output_name("1", False, True) == "output/STD_1_sql.xlsx"
 
 
 def test_generate_std_from_docx_produces_workbook(tmp_path):

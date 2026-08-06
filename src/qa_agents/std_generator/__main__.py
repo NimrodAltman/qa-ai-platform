@@ -11,7 +11,7 @@ import argparse
 
 from dotenv import load_dotenv
 
-from .pipeline import generate_std
+from .pipeline import default_output_name, generate_std
 
 
 def main() -> None:
@@ -26,7 +26,7 @@ def main() -> None:
         "output",
         nargs="?",
         default=None,
-        help="Output .xlsx path (default: output/STD_<tag>.xlsx)",
+        help="Output .xlsx path (default: output/STD_<tag>_<outputs>.xlsx)",
     )
     parser.add_argument(
         "--outputs",
@@ -44,7 +44,7 @@ def main() -> None:
     scenarios = args.outputs in ("both", "scenarios")
     sql = args.outputs in ("both", "sql")
     tag = None if args.whole_spec else args.tag
-    output = args.output or f"output/STD_{args.tag}.xlsx"
+    output = args.output or default_output_name(args.tag, scenarios, sql)
 
     out = generate_std(args.spec, tag, output, scenarios=scenarios, sql=sql)
     print(f"Wrote {out}")
