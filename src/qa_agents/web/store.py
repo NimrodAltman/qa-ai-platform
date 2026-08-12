@@ -6,6 +6,7 @@ re-download their outputs. The database lives under ``output/`` (gitignored).
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -29,6 +30,18 @@ def _connect() -> sqlite3.Connection:
             filename     TEXT NOT NULL,
             path         TEXT NOT NULL,
             status       TEXT NOT NULL
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS feedback (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            run_id       INTEGER NOT NULL REFERENCES runs (id),
+            created_at   TEXT NOT NULL,
+            rating       INTEGER,
+            categories   TEXT NOT NULL,
+            comment      TEXT NOT NULL
         )
         """
     )
@@ -72,6 +85,38 @@ def get_run(run_id: int) -> dict | None:
     with _connect() as conn:
         row = conn.execute("SELECT * FROM runs WHERE id = ?", (run_id,)).fetchone()
         return dict(row) if row else None
+
+
+def add_feedback(
+    run_id: int, rating: int | None, categories: list[str], comment: str
+) -> int:
+    """Record feedback for a run and return its id."""
+    created_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    with _connect() as conn:
+        cur = conn.execute(
+            "INSERT INTO feedback (run_id, created_at, rating, categories, comment)"
+            " VALUES (?, ?, ?, ?, ?)",
+            (run_id, created_at, rating, json.dumps(categories, ensure_ascii=False), comment),
+        )
+        return int(cur.lastrowid)
+
+
+def list_feedback() -> list[dict]:
+    """Return all feedback with its run's file name, newest first."""
+    with _connect() as conn:
+        rows = conn.execute(
+            """
+            SELECT feedback.*, runs.filename AS run_filename
+            FROM feedback JOIN runs ON runs.id = feedback.run_id
+            ORDER BY feedback.id DESC
+            """
+        ).fetchall()
+    result = []
+    for row in rows:
+        item = dict(row)
+        item["categories"] = json.loads(item["categories"])
+        result.append(item)
+    return result
 
 
 def run_stats() -> dict:

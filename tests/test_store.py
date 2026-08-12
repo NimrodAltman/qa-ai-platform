@@ -41,3 +41,23 @@ def test_run_stats_counts_by_type():
     stats = store.run_stats()
     assert stats["total"] == 3
     assert stats["by_type"] == {"both": 2, "scenarios": 0, "sql": 1}
+
+
+def test_add_and_list_feedback():
+    rid = store.add_run("1", "1", "both", "output/a.xlsx")
+    fid = store.add_feedback(rid, 4, ["Missing SQL", "RTL Issue"], "חסרים תסריטי קצה")
+    items = store.list_feedback()
+    assert len(items) == 1
+    assert items[0]["id"] == fid
+    assert items[0]["run_id"] == rid
+    assert items[0]["run_filename"] == "a.xlsx"
+    assert items[0]["rating"] == 4
+    assert items[0]["categories"] == ["Missing SQL", "RTL Issue"]
+    assert items[0]["comment"] == "חסרים תסריטי קצה"
+
+
+def test_feedback_is_newest_first():
+    rid = store.add_run("1", "1", "both", "output/a.xlsx")
+    store.add_feedback(rid, 3, [], "")
+    second = store.add_feedback(rid, 5, [], "")
+    assert store.list_feedback()[0]["id"] == second

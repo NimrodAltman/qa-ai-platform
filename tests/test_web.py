@@ -102,3 +102,61 @@ def test_stats_endpoint():
     body = res.json()
     assert "total" in body
     assert set(body["by_type"]) == {"both", "scenarios", "sql"}
+
+
+def test_feedback_categories_endpoint():
+    res = client.get("/api/feedback/categories")
+    assert res.status_code == 200
+    cats = res.json()
+    assert "Missing SQL" in cats
+    assert "Other" in cats
+
+
+def _make_run(tmp_path, monkeypatch) -> int:
+    monkeypatch.setattr(
+        webapp, "generate_std",
+        lambda *a, **k: write_workbook(StdResult(), tmp_path / "o.xlsx"),
+    )
+    files = {"file": ("spec.docx", b"dummy", "application/octet-stream")}
+    client.post("/api/generate", data={"tag": "40100"}, files=files)
+    return client.get("/api/runs").json()[0]["id"]
+
+
+def test_submit_and_list_feedback(tmp_path, monkeypatch):
+    run_id = _make_run(tmp_path, monkeypatch)
+
+    res = client.post(
+        "/api/feedback",
+        data={
+            "run_id": run_id,
+            "rating": "4",
+            "categories": "Missing SQL,RTL Issue",
+            "comment": "חסרים תסריטי קצה",
+        },
+    )
+    assert res.status_code == 200
+
+    items = client.get("/api/feedback").json()
+    assert len(items) == 1
+    assert items[0]["run_id"] == run_id
+    assert items[0]["rating"] == 4
+    assert items[0]["categories"] == ["Missing SQL", "RTL Issue"]
+
+
+def test_feedback_rejects_missing_run():
+    res = client.post("/api/feedback", data={"run_id": 999999, "rating": "3"})
+    assert res.status_code == 404
+
+
+def test_feedback_rejects_bad_rating(tmp_path, monkeypatch):
+    run_id = _make_run(tmp_path, monkeypatch)
+    res = client.post("/api/feedback", data={"run_id": run_id, "rating": "9"})
+    assert res.status_code == 400
+
+
+def test_feedback_rejects_unknown_category(tmp_path, monkeypatch):
+    run_id = _make_run(tmp_path, monkeypatch)
+    res = client.post(
+        "/api/feedback", data={"run_id": run_id, "categories": "Not A Real Category"}
+    )
+    assert res.status_code == 400

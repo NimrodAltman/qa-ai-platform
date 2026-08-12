@@ -30,6 +30,21 @@ app = FastAPI(title="QA AI Platform")
 _STATIC = Path(__file__).parent / "static"
 _XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
+FEEDBACK_CATEGORIES = [
+    "Missing Test Cases",
+    "Missing SQL",
+    "Wrong Business Logic",
+    "Wrong Field Name",
+    "Wrong Schema",
+    "Formatting Issue",
+    "RTL Issue",
+    "Duplicate Scenario",
+    "Wrong Expected Result",
+    "Missing Negative Tests",
+    "Missing Edge Cases",
+    "Other",
+]
+
 
 @app.get("/", response_class=HTMLResponse)
 def index() -> str:
@@ -103,3 +118,36 @@ def download_run(run_id: int) -> FileResponse:
     if run is None or not Path(run["path"]).is_file():
         raise HTTPException(status_code=404, detail="התוצר לא נמצא")
     return FileResponse(run["path"], filename=run["filename"], media_type=_XLSX_MIME)
+
+
+@app.get("/api/feedback/categories")
+def feedback_categories() -> list[str]:
+    return FEEDBACK_CATEGORIES
+
+
+@app.post("/api/feedback")
+async def submit_feedback(
+    run_id: int = Form(...),
+    rating: str = Form(""),
+    categories: str = Form(""),  # comma-separated category names
+    comment: str = Form(""),
+) -> dict:
+    if store.get_run(run_id) is None:
+        raise HTTPException(status_code=404, detail="ההרצה לא נמצאה")
+
+    rating_value = int(rating) if rating.strip() else None
+    if rating_value is not None and not (1 <= rating_value <= 5):
+        raise HTTPException(status_code=400, detail="הדירוג חייב להיות בין 1 ל-5")
+
+    cats = [c.strip() for c in categories.split(",") if c.strip()]
+    unknown = set(cats) - set(FEEDBACK_CATEGORIES)
+    if unknown:
+        raise HTTPException(status_code=400, detail=f"קטגוריות לא מוכרות: {', '.join(unknown)}")
+
+    fid = store.add_feedback(run_id, rating_value, cats, comment.strip())
+    return {"id": fid}
+
+
+@app.get("/api/feedback")
+def feedback() -> list[dict]:
+    return store.list_feedback()
