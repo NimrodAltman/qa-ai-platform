@@ -45,6 +45,23 @@ FEEDBACK_CATEGORIES = [
     "Other",
 ]
 
+# Suggested next step for whoever is improving the agent, shown next to each
+# category's count on the Health Dashboard.
+FEEDBACK_CATEGORY_ACTIONS = {
+    "Missing Test Cases": "הרחב את כיסוי התסריטים בפרומפט",
+    "Missing SQL": "חזק את חוקי ה-SQL בפרומפט",
+    "Wrong Business Logic": "בדוק ועדכן את כללי הלוגיקה העסקית בפרומפט",
+    "Wrong Field Name": "חזק את דרישת שם עברי + schema",
+    "Wrong Schema": "שפר את דיוק החילוץ מהאפיון",
+    "Formatting Issue": "בדוק את מנוע ה-Excel (עיצוב ויישור)",
+    "RTL Issue": "בדוק את הגדרות ה-RTL בגיליון",
+    "Duplicate Scenario": "הוסף הנחיה מפורשת למניעת כפילויות",
+    "Wrong Expected Result": "בדוק דיוק בין התוצאה הצפויה לאפיון",
+    "Missing Negative Tests": "חזק את דרישת הכיסוי השלילי",
+    "Missing Edge Cases": "חזק את דרישת כיסוי הקצה",
+    "Other": "עיין בהערה החופשית לפרטים",
+}
+
 
 @app.get("/", response_class=HTMLResponse)
 def index() -> str:
@@ -172,4 +189,13 @@ async def triage_feedback(
     updated = store.update_feedback(feedback_id, status=status or None, priority=priority or None)
     if not updated:
         raise HTTPException(status_code=404, detail="הפידבק לא נמצא")
+    return {"ok": True}
+
+
+@app.get("/api/quality-stats")
+def quality_stats() -> dict:
+    stats = store.health_stats()
+    for entry in stats["category_counts"]:
+        entry["action"] = FEEDBACK_CATEGORY_ACTIONS.get(entry["category"], "")
+    return stats
     return {"ok": True}

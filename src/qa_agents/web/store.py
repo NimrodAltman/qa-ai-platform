@@ -187,3 +187,54 @@ def run_stats() -> dict:
     for row in rows:
         by_type[row["output_type"]] = row["c"]
     return {"total": total, "by_type": by_type}
+
+
+def health_stats(recent_limit: int = 10) -> dict:
+    """Aggregate quality metrics for the Health Dashboard.
+
+    ``avg_rating`` / ``quality_score`` are ``None`` when no feedback has a
+    rating yet. ``recent_ratings`` is oldest-first (for a left-to-right trend
+    chart), capped at ``recent_limit``. ``category_counts`` is every category
+    mentioned across all feedback, sorted by count descending.
+    """
+    with _connect() as conn:
+        total_runs = conn.execute("SELECT COUNT(*) FROM runs").fetchone()[0]
+        total_feedback = conn.execute("SELECT COUNT(*) FROM feedback").fetchone()[0]
+        open_feedback = conn.execute(
+            "SELECT COUNT(*) FROM feedback WHERE status = 'Open'"
+        ).fetchone()[0]
+        resolved_feedback = conn.execute(
+            "SELECT COUNT(*) FROM feedback WHERE status = 'Resolved'"
+        ).fetchone()[0]
+        avg_rating = conn.execute(
+            "SELECT AVG(rating) FROM feedback WHERE rating IS NOT NULL"
+        ).fetchone()[0]
+        recent_rows = conn.execute(
+            "SELECT id, created_at, rating FROM feedback"
+            " WHERE rating IS NOT NULL ORDER BY id DESC LIMIT ?",
+            (recent_limit,),
+        ).fetchall()
+        category_rows = conn.execute("SELECT categories FROM feedback").fetchall()
+
+    counts: dict[str, int] = {}
+    for row in category_rows:
+        for category in json.loads(row["categories"]):
+            counts[category] = counts.get(category, 0) + 1
+    category_counts = sorted(
+        ({"category": c, "count": n} for c, n in counts.items()),
+        key=lambda entry: (-entry["count"], entry["category"]),
+    )
+
+    return {
+        "total_runs": total_runs,
+        "total_feedback": total_feedback,
+        "open_feedback": open_feedback,
+        "resolved_feedback": resolved_feedback,
+        "avg_rating": round(avg_rating, 2) if avg_rating is not None else None,
+        "quality_score": round(avg_rating / 5 * 100) if avg_rating is not None else None,
+        "recent_ratings": [
+            {"id": r["id"], "created_at": r["created_at"], "rating": r["rating"]}
+            for r in reversed(recent_rows)
+        ],
+        "category_counts": category_counts,
+    }

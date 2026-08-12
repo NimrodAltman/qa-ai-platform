@@ -93,6 +93,48 @@ def test_get_feedback_missing_returns_none():
     assert store.get_feedback(9999) is None
 
 
+def test_health_stats_counts_and_score():
+    rid = store.add_run("1", "1", "both", "output/a.xlsx")
+    f1 = store.add_feedback(rid, 4, [], "")
+    store.add_feedback(rid, 2, [], "")
+    store.update_feedback(f1, status="Resolved")
+
+    stats = store.health_stats()
+    assert stats["total_runs"] == 1
+    assert stats["total_feedback"] == 2
+    assert stats["open_feedback"] == 1
+    assert stats["resolved_feedback"] == 1
+    assert stats["avg_rating"] == 3.0
+    assert stats["quality_score"] == 60  # 3/5 * 100
+
+
+def test_health_stats_no_ratings_yields_none():
+    stats = store.health_stats()
+    assert stats["avg_rating"] is None
+    assert stats["quality_score"] is None
+
+
+def test_health_stats_category_counts_sorted_descending():
+    rid = store.add_run("1", "1", "both", "output/a.xlsx")
+    store.add_feedback(rid, 3, ["Missing SQL", "RTL Issue"], "")
+    store.add_feedback(rid, 3, ["Missing SQL"], "")
+    store.add_feedback(rid, 3, ["Other"], "")
+
+    counts = store.health_stats()["category_counts"]
+    assert counts[0] == {"category": "Missing SQL", "count": 2}
+    assert {"category": "RTL Issue", "count": 1} in counts
+    assert {"category": "Other", "count": 1} in counts
+
+
+def test_health_stats_recent_ratings_oldest_first_and_limited():
+    rid = store.add_run("1", "1", "both", "output/a.xlsx")
+    for rating in [1, 2, 3, 4, 5]:
+        store.add_feedback(rid, rating, [], "")
+
+    recent = store.health_stats(recent_limit=3)["recent_ratings"]
+    assert [r["rating"] for r in recent] == [3, 4, 5]  # oldest-first among the last 3
+
+
 def test_migrates_pre_existing_db_without_priority_status(tmp_path, monkeypatch):
     """A DB created before priority/status existed must still work (ALTER TABLE)."""
     db_path = tmp_path / "old.db"

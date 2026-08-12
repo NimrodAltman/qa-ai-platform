@@ -183,6 +183,27 @@ def test_triage_missing_feedback_returns_404():
     assert res.status_code == 404
 
 
+def test_quality_stats_shape():
+    res = client.get("/api/quality-stats")
+    assert res.status_code == 200
+    body = res.json()
+    for key in (
+        "total_runs", "total_feedback", "open_feedback", "resolved_feedback",
+        "avg_rating", "quality_score", "recent_ratings", "category_counts",
+    ):
+        assert key in body
+
+
+def test_quality_stats_category_counts_include_action_text(tmp_path, monkeypatch):
+    run_id = _make_run(tmp_path, monkeypatch)
+    client.post("/api/feedback", data={"run_id": run_id, "categories": "Missing SQL"})
+
+    body = client.get("/api/quality-stats").json()
+    entry = next(e for e in body["category_counts"] if e["category"] == "Missing SQL")
+    assert entry["count"] == 1
+    assert entry["action"]  # non-empty suggested action text
+
+
 def test_feedback_rejects_missing_run():
     res = client.post("/api/feedback", data={"run_id": 999999, "rating": "3"})
     assert res.status_code == 404
