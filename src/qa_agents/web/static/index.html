@@ -220,6 +220,14 @@
           <div class="checks" id="fbCategories"></div>
         </div>
         <div class="field">
+          <label class="lbl">עדיפות</label>
+          <div class="seg">
+            <label><input type="radio" name="priority" value="Low">נמוכה</label>
+            <label><input type="radio" name="priority" value="Medium" checked>בינונית</label>
+            <label><input type="radio" name="priority" value="High">גבוהה</label>
+          </div>
+        </div>
+        <div class="field">
           <label class="lbl">הערה חופשית</label>
           <textarea id="fbComment" rows="3" placeholder="פרט מה חסר או שגוי בתוצר…"></textarea>
         </div>
@@ -229,7 +237,8 @@
     </div>
 
     <div class="card">
-      <h2>פידבקים אחרונים</h2>
+      <h2>ניהול פידבקים</h2>
+      <p class="sub">כל הפידבקים שהוגשו — עדכן סטטוס וטיפול ישירות מהטבלה.</p>
       <div id="fbListArea"><div class="empty">טוען…</div></div>
     </div>
   </section>
@@ -367,6 +376,21 @@
   // ===== Feedback Center =====
   let pendingFeedbackRunId = null;
   let fbCategoriesLoaded = false;
+  const PRIORITY_ORDER = ['Low', 'Medium', 'High'];
+  const PRIORITY_LABEL = { Low: 'נמוכה', Medium: 'בינונית', High: 'גבוהה' };
+  const STATUS_ORDER = ['Open', 'Reviewed', 'Resolved'];
+  const STATUS_LABEL = { Open: 'פתוח', Reviewed: 'נבדק', Resolved: 'טופל' };
+
+  async function updateFeedbackTriage(id, field, value){
+    const data = new FormData();
+    data.append(field, value);
+    try {
+      await fetch('/api/feedback/' + id, { method: 'POST', body: data });
+    } catch (err) {
+      alert('שגיאת רשת: ' + err.message);
+    }
+    loadFeedbackList();  // re-render from the server's actual state either way
+  }
 
   function openFeedbackFor(runId){
     pendingFeedbackRunId = runId;
@@ -406,13 +430,21 @@
       const items = await (await fetch('/api/feedback')).json();
       if (!items.length) { area.innerHTML = '<div class="empty">אין פידבקים עדיין.</div>'; return; }
       let rows = '';
-      for (const f of items.slice(0, 10)){
+      for (const f of items.slice(0, 20)){
         const when = new Date(f.created_at).toLocaleString('he-IL');
         const stars = f.rating ? '★'.repeat(f.rating) + '☆'.repeat(5 - f.rating) : '—';
+        const prioOpts = PRIORITY_ORDER.map(p =>
+          '<option value="' + p + '"' + (f.priority === p ? ' selected' : '') + '>' + PRIORITY_LABEL[p] + '</option>'
+        ).join('');
+        const statusOpts = STATUS_ORDER.map(s =>
+          '<option value="' + s + '"' + (f.status === s ? ' selected' : '') + '>' + STATUS_LABEL[s] + '</option>'
+        ).join('');
         rows += '<tr><td>' + when + '</td><td>#' + f.run_id + ' ' + f.run_filename + '</td><td>' + stars +
-          '</td><td>' + (f.categories.join(', ') || '—') + '</td><td>' + (f.comment || '—') + '</td></tr>';
+          '</td><td>' + (f.categories.join(', ') || '—') + '</td><td>' + (f.comment || '—') +
+          '</td><td><select onchange="updateFeedbackTriage(' + f.id + ", 'priority', this.value)\">" + prioOpts + '</select>' +
+          '</td><td><select onchange="updateFeedbackTriage(' + f.id + ", 'status', this.value)\">" + statusOpts + '</select></td></tr>';
       }
-      area.innerHTML = '<table><thead><tr><th>תאריך</th><th>הרצה</th><th>דירוג</th><th>קטגוריות</th><th>הערה</th></tr></thead><tbody>' + rows + '</tbody></table>';
+      area.innerHTML = '<table><thead><tr><th>תאריך</th><th>הרצה</th><th>דירוג</th><th>קטגוריות</th><th>הערה</th><th>עדיפות</th><th>סטטוס</th></tr></thead><tbody>' + rows + '</tbody></table>';
     } catch (err) {
       area.innerHTML = '<div class="empty">שגיאה: ' + err.message + '</div>';
     }
@@ -427,12 +459,14 @@
     const rating = document.querySelector('input[name="rating"]:checked')?.value || '';
     const categories = [...document.querySelectorAll('#fbCategories input:checked')].map(el => el.value).join(',');
     const comment = document.getElementById('fbComment').value.trim();
+    const priority = document.querySelector('input[name="priority"]:checked')?.value || 'Medium';
 
     const data = new FormData();
     data.append('run_id', runId);
     data.append('rating', rating);
     data.append('categories', categories);
     data.append('comment', comment);
+    data.append('priority', priority);
 
     const fbSubmit = document.getElementById('fbSubmit');
     fbSubmit.disabled = true;

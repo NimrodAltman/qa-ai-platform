@@ -131,6 +131,7 @@ async def submit_feedback(
     rating: str = Form(""),
     categories: str = Form(""),  # comma-separated category names
     comment: str = Form(""),
+    priority: str = Form("Medium"),
 ) -> dict:
     if store.get_run(run_id) is None:
         raise HTTPException(status_code=404, detail="ההרצה לא נמצאה")
@@ -144,10 +145,31 @@ async def submit_feedback(
     if unknown:
         raise HTTPException(status_code=400, detail=f"קטגוריות לא מוכרות: {', '.join(unknown)}")
 
-    fid = store.add_feedback(run_id, rating_value, cats, comment.strip())
+    if priority not in store.PRIORITIES:
+        raise HTTPException(status_code=400, detail=f"עדיפות לא תקינה: {priority!r}")
+
+    fid = store.add_feedback(run_id, rating_value, cats, comment.strip(), priority=priority)
     return {"id": fid}
 
 
 @app.get("/api/feedback")
 def feedback() -> list[dict]:
     return store.list_feedback()
+
+
+@app.post("/api/feedback/{feedback_id}")
+async def triage_feedback(
+    feedback_id: int,
+    status: str = Form(""),
+    priority: str = Form(""),
+) -> dict:
+    """Admin triage: update a feedback item's status and/or priority."""
+    if status and status not in store.STATUSES:
+        raise HTTPException(status_code=400, detail=f"סטטוס לא תקין: {status!r}")
+    if priority and priority not in store.PRIORITIES:
+        raise HTTPException(status_code=400, detail=f"עדיפות לא תקינה: {priority!r}")
+
+    updated = store.update_feedback(feedback_id, status=status or None, priority=priority or None)
+    if not updated:
+        raise HTTPException(status_code=404, detail="הפידבק לא נמצא")
+    return {"ok": True}

@@ -1,5 +1,7 @@
 """Tests for the SQLite run store."""
 
+import sqlite3
+
 import pytest
 
 from qa_agents.web import store
@@ -54,6 +56,74 @@ def test_add_and_list_feedback():
     assert items[0]["rating"] == 4
     assert items[0]["categories"] == ["Missing SQL", "RTL Issue"]
     assert items[0]["comment"] == "חסרים תסריטי קצה"
+    # default triage fields
+    assert items[0]["priority"] == "Medium"
+    assert items[0]["status"] == "Open"
+
+
+def test_add_feedback_with_explicit_priority():
+    rid = store.add_run("1", "1", "both", "output/a.xlsx")
+    fid = store.add_feedback(rid, 5, [], "", priority="High")
+    assert store.get_feedback(fid)["priority"] == "High"
+
+
+def test_update_feedback_status_and_priority():
+    rid = store.add_run("1", "1", "both", "output/a.xlsx")
+    fid = store.add_feedback(rid, 2, [], "בעיה")
+    assert store.update_feedback(fid, status="Resolved", priority="Low") is True
+    item = store.get_feedback(fid)
+    assert item["status"] == "Resolved"
+    assert item["priority"] == "Low"
+
+
+def test_update_feedback_partial_leaves_other_field():
+    rid = store.add_run("1", "1", "both", "output/a.xlsx")
+    fid = store.add_feedback(rid, 2, [], "", priority="High")
+    store.update_feedback(fid, status="Reviewed")  # priority not touched
+    item = store.get_feedback(fid)
+    assert item["status"] == "Reviewed"
+    assert item["priority"] == "High"
+
+
+def test_update_feedback_missing_returns_false():
+    assert store.update_feedback(9999, status="Resolved") is False
+
+
+def test_get_feedback_missing_returns_none():
+    assert store.get_feedback(9999) is None
+
+
+def test_migrates_pre_existing_db_without_priority_status(tmp_path, monkeypatch):
+    """A DB created before priority/status existed must still work (ALTER TABLE)."""
+    db_path = tmp_path / "old.db"
+    monkeypatch.setattr(store, "DB_PATH", db_path)
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        """
+        CREATE TABLE runs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, created_at TEXT NOT NULL, tag TEXT,
+            task_number TEXT, output_type TEXT NOT NULL, filename TEXT NOT NULL,
+            path TEXT NOT NULL, status TEXT NOT NULL
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE feedback (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, run_id INTEGER NOT NULL,
+            created_at TEXT NOT NULL, rating INTEGER,
+            categories TEXT NOT NULL, comment TEXT NOT NULL
+        )
+        """
+    )
+    conn.commit()
+    conn.close()
+
+    rid = store.add_run("1", "1", "both", "output/a.xlsx")
+    fid = store.add_feedback(rid, 3, [], "old-schema row")
+    item = store.get_feedback(fid)
+    assert item["priority"] == "Medium"
+    assert item["status"] == "Open"
 
 
 def test_feedback_is_newest_first():

@@ -141,6 +141,46 @@ def test_submit_and_list_feedback(tmp_path, monkeypatch):
     assert items[0]["run_id"] == run_id
     assert items[0]["rating"] == 4
     assert items[0]["categories"] == ["Missing SQL", "RTL Issue"]
+    # default triage fields
+    assert items[0]["priority"] == "Medium"
+    assert items[0]["status"] == "Open"
+
+
+def test_submit_feedback_with_explicit_priority(tmp_path, monkeypatch):
+    run_id = _make_run(tmp_path, monkeypatch)
+    res = client.post("/api/feedback", data={"run_id": run_id, "priority": "High"})
+    assert res.status_code == 200
+    assert client.get("/api/feedback").json()[0]["priority"] == "High"
+
+
+def test_submit_feedback_rejects_bad_priority(tmp_path, monkeypatch):
+    run_id = _make_run(tmp_path, monkeypatch)
+    res = client.post("/api/feedback", data={"run_id": run_id, "priority": "Urgent!!"})
+    assert res.status_code == 400
+
+
+def test_triage_updates_status_and_priority(tmp_path, monkeypatch):
+    run_id = _make_run(tmp_path, monkeypatch)
+    fid = client.post("/api/feedback", data={"run_id": run_id}).json()["id"]
+
+    res = client.post(f"/api/feedback/{fid}", data={"status": "Resolved", "priority": "Low"})
+    assert res.status_code == 200
+
+    item = client.get("/api/feedback").json()[0]
+    assert item["status"] == "Resolved"
+    assert item["priority"] == "Low"
+
+
+def test_triage_rejects_bad_status(tmp_path, monkeypatch):
+    run_id = _make_run(tmp_path, monkeypatch)
+    fid = client.post("/api/feedback", data={"run_id": run_id}).json()["id"]
+    res = client.post(f"/api/feedback/{fid}", data={"status": "NotAStatus"})
+    assert res.status_code == 400
+
+
+def test_triage_missing_feedback_returns_404():
+    res = client.post("/api/feedback/999999", data={"status": "Resolved"})
+    assert res.status_code == 404
 
 
 def test_feedback_rejects_missing_run():
