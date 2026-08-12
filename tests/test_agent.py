@@ -2,6 +2,8 @@
 
 import json
 
+import pytest
+
 from qa_agents.base import get_agent
 from qa_agents.models import StdResult
 from qa_agents.std_generator.agent import StdGeneratorAgent, parse_std
@@ -68,6 +70,12 @@ def test_parse_std_defaults_notes_when_missing():
     )
     result = parse_std(raw)
     assert result.sql_queries[0].notes == ""
+
+
+def test_parse_std_raises_clear_error_on_truncated_json():
+    truncated = '{"scenarios": [{"entity": "unterminated'
+    with pytest.raises(ValueError, match="נחתך"):
+        parse_std(truncated)
 
 
 def test_agent_is_registered():

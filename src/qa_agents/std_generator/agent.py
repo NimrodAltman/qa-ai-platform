@@ -102,9 +102,18 @@ class StdGeneratorAgent(BaseAgent):
         return parse_std(raw)
 
 
+_TRUNCATED_OUTPUT_MESSAGE = (
+    "הפלט מהסוכן נחתך כי היה ארוך מדי. נסה לצמצם את ההיקף — למשל הרץ תסריטים "
+    "ו-SQL בנפרד במקום שניהם יחד, או הרץ לתיוג ספציפי במקום כלל האפיון."
+)
+
+
 def parse_std(raw: str) -> StdResult:
     """Parse the model's JSON output into an ``StdResult``."""
-    data = json.loads(raw)
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ValueError(_TRUNCATED_OUTPUT_MESSAGE) from exc
     scenarios = [Scenario(**s) for s in data.get("scenarios", [])]
     sql_queries = [SqlQuery(**q) for q in data.get("sql_queries", [])]
     return StdResult(scenarios=scenarios, sql_queries=sql_queries)
@@ -120,13 +129,18 @@ def _anthropic_completer(model: str) -> Completer:
             import anthropic
 
             client = anthropic.Anthropic()
-        response = client.messages.create(
+        # Streamed: non-streaming requests above ~16K output tokens risk an
+        # SDK timeout guard, and exhaustive "both" runs can exceed that.
+        with client.messages.stream(
             model=model,
-            max_tokens=16000,
+            max_tokens=32000,
             system=system,
             messages=[{"role": "user", "content": user}],
             output_config={"format": {"type": "json_schema", "schema": STD_SCHEMA}},
-        )
+        ) as stream:
+            response = stream.get_final_message()
+        if response.stop_reason == "max_tokens":
+            raise RuntimeError(_TRUNCATED_OUTPUT_MESSAGE)
         return next(block.text for block in response.content if block.type == "text")
 
     return complete
