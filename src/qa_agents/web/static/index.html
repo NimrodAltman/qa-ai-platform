@@ -122,20 +122,20 @@
     <div class="hero">
       <span class="badge">✦ QA AI Platform</span>
       <h1>לוח בקרה</h1>
-      <p>פלטפורמת סוכני QA — הפק תסריטי בדיקה ושאילתות SQL מאפיונים, ועקוב אחר ההרצות והתוצרים.</p>
+      <p>פלטפורמת סוכני QA — בחר סוכן, הפק תוצרים מאפיונים, ועקוב אחר ההרצות והתוצרים.</p>
     </div>
     <div class="cards" id="statCards">
       <div class="statcard"><div class="stat">—</div><b>סה"כ הרצות</b><div class="muted">כל התוצרים שהופקו</div></div>
-      <div class="statcard"><div class="stat">—</div><b>תסריטים + SQL</b><div class="muted">הרצות מלאות</div></div>
+      <div class="statcard"><div class="stat">—</div><b>תסריטים + SQL</b><div class="muted">STD Generator</div></div>
       <div class="statcard"><div class="stat">—</div><b>תסריטים בלבד</b><div class="muted">&nbsp;</div></div>
       <div class="statcard"><div class="stat">—</div><b>SQL בלבד</b><div class="muted">&nbsp;</div></div>
     </div>
     <h2 class="sectionTitle">זרימת עבודה</h2>
     <div class="flow">
-      <div class="step"><b>1. העלאת אפיון</b><span>Word / Excel / PDF</span></div>
-      <div class="step"><b>2. מצב הרצה</b><span>תיוג או כלל האפיון</span></div>
-      <div class="step"><b>3. סוג תוצר</b><span>תסריטים / SQL / שניהם</span></div>
-      <div class="step"><b>4. הפקה</b><span>הסוכן מייצר Excel</span></div>
+      <div class="step"><b>1. בחירת סוכן</b><span>STD Generator / Spec Analyzer</span></div>
+      <div class="step"><b>2. העלאת אפיון</b><span>Word / Excel / PDF</span></div>
+      <div class="step"><b>3. אפשרויות הרצה</b><span>תיוג/כלל האפיון, סוג תוצר</span></div>
+      <div class="step"><b>4. הפקה</b><span>הסוכן מייצר את התוצר</span></div>
       <div class="step"><b>5. Output Center</b><span>היסטוריה והורדה</span></div>
     </div>
     <h2 class="sectionTitle">הרצות אחרונות</h2>
@@ -145,44 +145,70 @@
   <!-- ===== Run Agent ===== -->
   <section id="run" class="screen">
     <div class="hero">
-      <span class="badge">✦ STD Generator</span>
+      <span class="badge">✦ Agent Hub</span>
       <h1>הרצת סוכן</h1>
-      <p>העלה מסמך אפיון, בחר מצב הרצה וסוג תוצר, והסוכן יפיק תסריטי בדיקה ו/או שאילתות SQL כקובץ Excel.</p>
+      <p>בחר סוכן, העלה מסמך אפיון, והפק את התוצר — תסריטי בדיקה ו-SQL, או דוח ניתוח מוכנות.</p>
     </div>
 
     <div class="card">
       <h2>Run Agent</h2>
-      <p class="sub">פורמטים נתמכים: ‎.docx · .xlsx · .pdf</p>
+      <div class="field">
+        <label class="lbl">סוכן</label>
+        <div class="seg">
+          <label><input type="radio" name="agentKind" value="std" checked>STD Generator</label>
+          <label><input type="radio" name="agentKind" value="analyzer">Spec Analyzer</label>
+        </div>
+      </div>
+      <p class="sub" id="agentDesc">מפיק תסריטי בדיקה ושאילתות SQL מאפיון, כקובץ Excel.</p>
       <form id="form">
         <div class="field">
           <label class="lbl">מסמך אפיון</label>
           <input type="file" id="file" accept=".docx,.xlsx,.pdf" required />
         </div>
-        <div class="field">
-          <label class="lbl">מצב הרצה</label>
-          <div class="seg">
-            <label><input type="radio" name="mode" value="tag" checked>תיוג ספציפי</label>
-            <label><input type="radio" name="mode" value="whole">כלל האפיון</label>
+
+        <!-- STD Generator fields -->
+        <div id="stdFields">
+          <div class="field">
+            <label class="lbl">מצב הרצה</label>
+            <div class="seg">
+              <label><input type="radio" name="mode" value="tag" checked>תיוג ספציפי</label>
+              <label><input type="radio" name="mode" value="whole">כלל האפיון</label>
+            </div>
           </div>
-        </div>
-        <div class="grid">
-          <div class="field" id="tagField">
-            <label class="lbl">מספר תיוג</label>
-            <input type="text" id="tag" placeholder="לדוגמה: 40100" />
+          <div class="grid">
+            <div class="field" id="tagField">
+              <label class="lbl">מספר תיוג</label>
+              <input type="text" id="tag" placeholder="לדוגמה: 40100" />
+            </div>
+            <div class="field">
+              <label class="lbl">מספר משימה (לשם הקובץ)</label>
+              <input type="text" id="task" placeholder="לדוגמה: 40100" />
+            </div>
           </div>
           <div class="field">
-            <label class="lbl">מספר משימה (לשם הקובץ)</label>
-            <input type="text" id="task" placeholder="לדוגמה: 40100" />
+            <label class="lbl">סוג תוצר</label>
+            <div class="seg">
+              <label><input type="radio" name="out" value="both" checked>תסריטים + SQL</label>
+              <label><input type="radio" name="out" value="scenarios">תסריטים בלבד</label>
+              <label><input type="radio" name="out" value="sql">SQL בלבד</label>
+            </div>
           </div>
         </div>
-        <div class="field">
-          <label class="lbl">סוג תוצר</label>
-          <div class="seg">
-            <label><input type="radio" name="out" value="both" checked>תסריטים + SQL</label>
-            <label><input type="radio" name="out" value="scenarios">תסריטים בלבד</label>
-            <label><input type="radio" name="out" value="sql">SQL בלבד</label>
+
+        <!-- Spec Analyzer fields -->
+        <div id="analyzerFields" class="hidden">
+          <div class="grid">
+            <div class="field">
+              <label class="lbl">מספר תיוג (אופציונלי)</label>
+              <input type="text" id="analyzerTag" placeholder="השאר ריק לניתוח כלל האפיון" />
+            </div>
+            <div class="field">
+              <label class="lbl">מספר משימה (לשם הקובץ, אופציונלי)</label>
+              <input type="text" id="analyzerTask" placeholder="לדוגמה: 40100" />
+            </div>
           </div>
         </div>
+
         <button class="btn full" id="submit" type="submit">הפק STD ⟵</button>
       </form>
       <div class="status" id="status"></div>
@@ -288,7 +314,7 @@
     if (id === 'health') loadHealthDashboard();
   }
 
-  const OUT_LABEL = { both: 'תסריטים + SQL', scenarios: 'תסריטים', sql: 'SQL' };
+  const OUT_LABEL = { both: 'תסריטים + SQL', scenarios: 'תסריטים', sql: 'SQL', analysis: 'ניתוח אפיון' };
 
   async function loadDashboard(){
     try {
@@ -302,7 +328,7 @@
       nums[3].textContent = stats.by_type.sql;
       const area = document.getElementById('recentArea');
       const recent = runs.slice(0, 5);
-      if (!recent.length){ area.innerHTML = '<div class="empty">אין הרצות עדיין. הפק STD ראשון ממסך Run Agent.</div>'; return; }
+      if (!recent.length){ area.innerHTML = '<div class="empty">אין הרצות עדיין. הפק תוצר ראשון ממסך Run Agent.</div>'; return; }
       let rows = '';
       for (const r of recent){
         const when = new Date(r.created_at).toLocaleString('he-IL');
@@ -322,7 +348,7 @@
     try {
       const res = await fetch('/api/runs');
       const runs = await res.json();
-      if (!runs.length) { area.innerHTML = '<div class="empty">אין הרצות עדיין. הפק STD ראשון ממסך Run Agent.</div>'; return; }
+      if (!runs.length) { area.innerHTML = '<div class="empty">אין הרצות עדיין. הפק תוצר ראשון ממסך Run Agent.</div>'; return; }
       let rows = '';
       for (const r of runs){
         const when = new Date(r.created_at).toLocaleString('he-IL');
@@ -351,8 +377,27 @@
   const statusEl = document.getElementById('status');
   const submitBtn = document.getElementById('submit');
   const tagField = document.getElementById('tagField');
+  const stdFields = document.getElementById('stdFields');
+  const analyzerFields = document.getElementById('analyzerFields');
+  const agentDesc = document.getElementById('agentDesc');
   const mode = () => document.querySelector('input[name="mode"]:checked').value;
   const outType = () => document.querySelector('input[name="out"]:checked').value;
+  const agentKind = () => document.querySelector('input[name="agentKind"]:checked').value;
+
+  const AGENT_DESC = {
+    std: 'מפיק תסריטי בדיקה ושאילתות SQL מאפיון, כקובץ Excel.',
+    analyzer: 'מפיק דוח מוכנות (Word): חוקים עסקיים, ישויות ושדות, פערים והמלצות — לפני תחילת בדיקות.',
+  };
+  const SUBMIT_LABEL = { std: 'הפק STD ⟵', analyzer: 'הפק ניתוח ⟵' };
+
+  function syncAgentFields(){
+    const kind = agentKind();
+    stdFields.classList.toggle('hidden', kind !== 'std');
+    analyzerFields.classList.toggle('hidden', kind !== 'analyzer');
+    agentDesc.textContent = AGENT_DESC[kind];
+    submitBtn.textContent = SUBMIT_LABEL[kind];
+  }
+  document.querySelectorAll('input[name="agentKind"]').forEach(r => r.addEventListener('change', syncAgentFields));
 
   document.querySelectorAll('input[name="mode"]').forEach(r =>
     r.addEventListener('change', () => tagField.classList.toggle('hidden', mode() !== 'tag'))
@@ -363,18 +408,35 @@
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const file = document.getElementById('file').files[0];
+    if (!file) { setStatus('err', '❌ יש לבחור מסמך אפיון'); return; }
+    const selectedAgent = agentKind();  // snapshot at submit time so a change mid-run can't desync anything
+
+    submitBtn.disabled = true;
+    setStatus('run', 'הסוכן עובד על האפיון… זה עשוי לקחת עד דקה.<span class="spinner"></span>');
+
+    try {
+      if (selectedAgent === 'std') {
+        await runStdGenerator(file);
+      } else {
+        await runSpecAnalyzer(file);
+      }
+      loadRuns();  // keep the Output Center history fresh
+    } catch (err) {
+      setStatus('err', '❌ ' + err.message);
+    } finally {
+      submitBtn.disabled = false;
+    }
+  });
+
+  async function runStdGenerator(file){
     const tag = document.getElementById('tag').value.trim();
     const task = document.getElementById('task').value.trim();
     const selectedMode = mode();    // snapshot the selections at submit time so a
     const selectedOut = outType();  // change during generation can't desync the file name
 
-    if (!file) { setStatus('err', '❌ יש לבחור מסמך אפיון'); return; }
-    if (selectedMode === 'tag' && !tag) { setStatus('err', '❌ במצב "תיוג ספציפי" חובה להזין מספר תיוג'); return; }
+    if (selectedMode === 'tag' && !tag) throw new Error('במצב "תיוג ספציפי" חובה להזין מספר תיוג');
     const nameKey = task || tag;
-    if (!nameKey) { setStatus('err', '❌ יש להזין מספר משימה או תיוג לשם הקובץ'); return; }
-
-    submitBtn.disabled = true;
-    setStatus('run', 'הסוכן עובד על האפיון… זה עשוי לקחת עד דקה.<span class="spinner"></span>');
+    if (!nameKey) throw new Error('יש להזין מספר משימה או תיוג לשם הקובץ');
 
     const data = new FormData();
     data.append('file', file);
@@ -383,28 +445,40 @@
     data.append('task_number', task);
     data.append('output_type', selectedOut);
 
-    try {
-      const res = await fetch('/api/generate', { method: 'POST', body: data });
-      if (!res.ok) {
-        let detail = 'אירעה שגיאה.';
-        try { detail = (await res.json()).detail || detail; } catch (_) {}
-        setStatus('err', '❌ ' + detail);
-        return;
-      }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const suffix = selectedOut === 'both' ? 'scenarios_sql' : selectedOut;
-      const name = 'STD_' + nameKey + '_' + suffix + '.xlsx';
-      setStatus('ok',
-        '✅ הקובץ נוצר בהצלחה!' +
-        '<br><a class="dl" href="' + url + '" download="' + name + '">⬇ הורד את ' + name + '</a>');
-      loadRuns();  // keep the Output Center history fresh
-    } catch (err) {
-      setStatus('err', '❌ שגיאת רשת: ' + err.message);
-    } finally {
-      submitBtn.disabled = false;
-    }
-  });
+    const res = await fetch('/api/generate', { method: 'POST', body: data });
+    if (!res.ok) throw new Error(await errorDetail(res));
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const suffix = selectedOut === 'both' ? 'scenarios_sql' : selectedOut;
+    const name = 'STD_' + nameKey + '_' + suffix + '.xlsx';
+    setStatus('ok', '✅ הקובץ נוצר בהצלחה!' +
+      '<br><a class="dl" href="' + url + '" download="' + name + '">⬇ הורד את ' + name + '</a>');
+  }
+
+  async function runSpecAnalyzer(file){
+    const tag = document.getElementById('analyzerTag').value.trim();
+    const task = document.getElementById('analyzerTask').value.trim();
+    const nameKey = task || tag || 'full_spec';
+
+    const data = new FormData();
+    data.append('file', file);
+    data.append('tag', tag);
+    data.append('task_number', task);
+
+    const res = await fetch('/api/analyze', { method: 'POST', body: data });
+    if (!res.ok) throw new Error(await errorDetail(res));
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const name = 'ANALYSIS_' + nameKey + '.docx';
+    setStatus('ok', '✅ הדוח נוצר בהצלחה!' +
+      '<br><a class="dl" href="' + url + '" download="' + name + '">⬇ הורד את ' + name + '</a>');
+  }
+
+  async function errorDetail(res){
+    try { return (await res.json()).detail || 'אירעה שגיאה.'; } catch (_) { return 'אירעה שגיאה.'; }
+  }
 
   // ===== Feedback Center =====
   let pendingFeedbackRunId = null;

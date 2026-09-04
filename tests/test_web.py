@@ -4,6 +4,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from qa_agents.models import StdResult
+from qa_agents.spec_analyzer.models import AnalysisResult
+from qa_agents.spec_analyzer.word_writer import write_report
 from qa_agents.std_generator.excel_writer import write_workbook
 from qa_agents.web import app as webapp
 from qa_agents.web import store as webstore
@@ -221,3 +223,53 @@ def test_feedback_rejects_unknown_category(tmp_path, monkeypatch):
         "/api/feedback", data={"run_id": run_id, "categories": "Not A Real Category"}
     )
     assert res.status_code == 400
+
+
+# ===== Spec Analyzer endpoint =====
+
+def test_analyze_returns_docx(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        webapp, "generate_analysis",
+        lambda *a, **k: write_report(AnalysisResult(), tmp_path / "o.docx"),
+    )
+    files = {"file": ("spec.docx", b"dummy", "application/octet-stream")}
+    res = client.post("/api/analyze", data={"tag": "40100"}, files=files)
+    assert res.status_code == 200
+    assert "wordprocessingml" in res.headers["content-type"]
+
+
+def test_analyze_defaults_to_whole_spec_when_tag_empty(tmp_path, monkeypatch):
+    captured = {}
+
+    def fake_analyze(spec_path, tag, output_path):
+        captured["tag"] = tag
+        return write_report(AnalysisResult(), tmp_path / "o.docx")
+
+    monkeypatch.setattr(webapp, "generate_analysis", fake_analyze)
+    files = {"file": ("spec.docx", b"dummy", "application/octet-stream")}
+    res = client.post("/api/analyze", data={}, files=files)
+    assert res.status_code == 200
+    assert captured["tag"] is None
+
+
+def test_analyze_rejects_unsupported_extension():
+    files = {"file": ("spec.txt", b"dummy", "text/plain")}
+    res = client.post("/api/analyze", data={}, files=files)
+    assert res.status_code == 400
+
+
+def test_analyze_run_appears_in_history_and_downloads_as_docx(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        webapp, "generate_analysis",
+        lambda *a, **k: write_report(AnalysisResult(), tmp_path / "o.docx"),
+    )
+    files = {"file": ("spec.docx", b"dummy", "application/octet-stream")}
+    client.post("/api/analyze", data={"tag": "40100"}, files=files)
+
+    run = client.get("/api/runs").json()[0]
+    assert run["output_type"] == "analysis"
+    assert run["filename"].endswith(".docx")
+
+    res = client.get(f"/api/runs/{run['id']}/download")
+    assert res.status_code == 200
+    assert "wordprocessingml" in res.headers["content-type"]

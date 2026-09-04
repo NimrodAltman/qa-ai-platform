@@ -22,6 +22,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 
 from . import store
 from ..extraction import SUPPORTED
+from ..spec_analyzer.pipeline import generate_analysis
 from ..std_generator.pipeline import generate_std, output_suffix
 
 load_dotenv()  # pick up ANTHROPIC_API_KEY from a local .env for convenience
@@ -29,6 +30,7 @@ load_dotenv()  # pick up ANTHROPIC_API_KEY from a local .env for convenience
 app = FastAPI(title="QA AI Platform")
 _STATIC = Path(__file__).parent / "static"
 _XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+_DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
 FEEDBACK_CATEGORIES = [
     "Missing Test Cases",
@@ -119,6 +121,38 @@ async def generate(
     return FileResponse(out, filename=display_name, media_type=_XLSX_MIME)
 
 
+@app.post("/api/analyze")
+async def analyze(
+    file: UploadFile,
+    tag: str = Form(""),
+    task_number: str = Form(""),
+) -> FileResponse:
+    """Run the Spec Analyzer agent. Empty ``tag`` analyzes the whole spec."""
+    suffix = Path(file.filename or "").suffix.lower()
+    if suffix not in SUPPORTED:
+        raise HTTPException(
+            status_code=400,
+            detail=f"סוג קובץ לא נתמך {suffix!r}. נתמכים: {', '.join(SUPPORTED)}",
+        )
+
+    name_key = task_number.strip() or tag.strip() or "full_spec"
+    display_name = f"ANALYSIS_{name_key}.docx"
+    # a unique path per run so repeated runs don't overwrite each other's output
+    unique_path = f"output/ANALYSIS_{name_key}_{uuid.uuid4().hex[:8]}.docx"
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        shutil.copyfileobj(file.file, tmp)
+        spec_path = tmp.name
+
+    try:
+        out = generate_analysis(spec_path, tag.strip() or None, unique_path)
+    except Exception as exc:  # surface generation failures to the UI
+        raise HTTPException(status_code=500, detail=f"הניתוח נכשל: {exc}")
+
+    store.add_run(tag.strip() or None, task_number.strip(), "analysis", str(out), filename=display_name)
+    return FileResponse(out, filename=display_name, media_type=_DOCX_MIME)
+
+
 @app.get("/api/runs")
 def runs() -> list[dict]:
     return store.list_runs()
@@ -129,12 +163,17 @@ def stats() -> dict:
     return store.run_stats()
 
 
+_MIME_BY_SUFFIX = {".xlsx": _XLSX_MIME, ".docx": _DOCX_MIME}
+
+
 @app.get("/api/runs/{run_id}/download")
 def download_run(run_id: int) -> FileResponse:
     run = store.get_run(run_id)
     if run is None or not Path(run["path"]).is_file():
         raise HTTPException(status_code=404, detail="התוצר לא נמצא")
-    return FileResponse(run["path"], filename=run["filename"], media_type=_XLSX_MIME)
+    suffix = Path(run["filename"]).suffix.lower()
+    media_type = _MIME_BY_SUFFIX.get(suffix, "application/octet-stream")
+    return FileResponse(run["path"], filename=run["filename"], media_type=media_type)
 
 
 @app.get("/api/feedback/categories")
@@ -198,4 +237,3 @@ def quality_stats() -> dict:
     for entry in stats["category_counts"]:
         entry["action"] = FEEDBACK_CATEGORY_ACTIONS.get(entry["category"], "")
     return stats
-    return {"ok": True}
