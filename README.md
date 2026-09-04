@@ -80,20 +80,23 @@ python -m qa_agents.spec_analyzer examples/sample_spec.docx 40100
 
 ## Web UI
 
-A local web interface (FastAPI) exposes the "Run Agent" screen — upload a spec,
-pick options, and download the STD:
+A local web interface (FastAPI) drives the full agent hub — Dashboard, Agent
+Catalog, Run Agent, Output Center, Feedback Center, Health Dashboard:
 
 ```bash
 python -m uvicorn qa_agents.web.app:app --port 8000
 # open http://localhost:8000
 ```
 
-Options mirror the product mockups: execution mode (specific tag / whole spec),
-output type (scenarios / SQL / both), and a task number for the file name. The
-API key is read from a local `.env`; generation runs server-side.
+**Agent Catalog** lists every agent registered in `BaseAgent`'s registry (name,
+description, output format) and jumps straight to Run Agent with that agent
+pre-selected — add a new agent and it appears here automatically, no UI change
+needed.
 
-The web UI currently drives **STD Generator** only; Spec Analyzer is CLI/library
-only for now — see Roadmap.
+**Run Agent** drives both agents: pick STD Generator (execution mode, output
+type — scenarios / SQL / both) or Spec Analyzer (optional tag, defaults to the
+whole spec), upload a document, and download the result. The API key is read
+from a local `.env`; generation runs server-side.
 
 ## Testing
 
@@ -146,8 +149,9 @@ examples/                # fully fictional demo specifications
   triage), Health Dashboard.
 - ✅ A second agent on the same base — **Spec Analyzer** (process/specification
   readiness analysis, Word output).
-- Wire Spec Analyzer into the web UI (currently CLI/library only).
-- Agent Catalog / Agent Management screens, now that a second real agent exists
-  to design them against.
+- ✅ Wired Spec Analyzer into the web UI alongside STD Generator.
+- ✅ Agent Catalog — a registry-driven screen listing every registered agent,
+  with a one-click jump to Run Agent pre-selected.
+- Agent Management screen (enable/disable agents, per-agent settings).
 - Multi-profile support so a new organization is a config file, not code.
 - Authentication / roles (deliberately deferred — single local user today).
