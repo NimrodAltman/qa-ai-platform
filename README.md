@@ -82,17 +82,25 @@ python -m qa_agents.spec_analyzer examples/sample_spec.docx 40100
 ## Web UI
 
 A local web interface (FastAPI) drives the full agent hub — Dashboard, Agent
-Catalog, Run Agent, Output Center, Feedback Center, Health Dashboard:
+Catalog, Run Agent, Output Center, Feedback Center, Health Dashboard, Agent
+Management:
 
 ```bash
 python -m uvicorn qa_agents.web.app:app --port 8000
 # open http://localhost:8000
 ```
 
-**Agent Catalog** lists every agent registered in `BaseAgent`'s registry (name,
-description, output format) and jumps straight to Run Agent with that agent
-pre-selected — add a new agent and it appears here automatically, no UI change
-needed.
+**Agent Catalog** lists every agent registered in `BaseAgent`'s registry —
+name, description, accepted input formats, and output format — and jumps
+straight to Run Agent with that agent pre-selected. Add a new agent and it
+appears here automatically, no UI change needed. (Every agent currently
+accepts the same input formats — Word/Excel/PDF — while output format is
+per-agent; the Catalog shows both, clearly labeled, so they aren't confused.)
+
+**Agent Management** lets you pick which Claude model an agent uses (or
+"default", which falls back to the `QA_MODEL` env var) without touching
+`.env` or code — useful for testing an agent on Haiku while keeping Opus as
+the default for real runs.
 
 **Organization profile** — STD Generator's Run Agent form has an "organization
 profile" dropdown (`crm-hebrew` / `ecommerce-english`), populated from the same
@@ -179,5 +187,8 @@ examples/                # fully fictional demo specifications
   (`/api/agents`, `/api/profiles`), so both scale past a couple of options.
 - ✅ Multi-profile support — a second organization (`ecommerce-english`) proves a
   new org is a config file, not code. See [Multi-organization support](#multi-organization-support).
-- Agent Management screen (enable/disable agents, per-agent settings).
+- ✅ Agent Management — per-agent Claude model override (or "default"), editable
+  without touching `.env` or code.
+- Extend multi-profile support (persona/language, not just Excel layout) to
+  Spec Analyzer — currently STD Generator only.
 - Authentication / roles (deliberately deferred — single local user today).
