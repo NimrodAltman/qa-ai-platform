@@ -83,12 +83,25 @@ python -m qa_agents.spec_analyzer examples/sample_spec.docx 40100
 
 A local web interface (FastAPI) drives the full agent hub — Dashboard, Agent
 Catalog, Run Agent, Output Center, Feedback Center, Health Dashboard, Agent
-Management:
+Management, User Management:
 
 ```bash
 python -m uvicorn qa_agents.web.app:app --port 8000
 # open http://localhost:8000
 ```
+
+The first run seeds a default admin account — **username `admin`, password
+`admin`** — change the password (or add a real user and delete the default
+one) from User Management before exposing this beyond your own machine.
+
+**Login required.** Every screen sits behind a session (a signed cookie —
+see `SESSION_SECRET` in `.env.example`). Two roles: **admin** sees and
+controls everything; **user** (QA User) can run agents, browse outputs, and
+submit feedback, but not triage feedback, view Health Dashboard, or reach
+Agent/User Management. **User Management** (admin-only) creates/deletes users
+and sets roles. A user can optionally be restricted to specific agents (data
+model only for now — `store.set_user_agent_access()` — a picker in the UI is
+a natural next step); unrestricted is the default, matching today's behavior.
 
 **Agent Catalog** lists every agent registered in `BaseAgent`'s registry —
 name, description, accepted input formats, and output format — and jumps
@@ -167,8 +180,9 @@ src/qa_agents/
 │   ├── pipeline.py       # extract → agent → word report
 │   └── __main__.py       # CLI
 └── web/                 # FastAPI app + Agent Hub UI
-    ├── app.py           # routes: generate, runs, feedback, quality-stats
-    ├── store.py         # SQLite-backed run/feedback persistence
+    ├── app.py           # routes: generate, runs, feedback, quality-stats, auth
+    ├── auth.py          # password hashing, session dependency, role checks
+    ├── store.py         # SQLite-backed run/feedback/user persistence
     └── static/index.html
 tests/                   # unit + end-to-end tests (mocked LLM)
 examples/                # fully fictional demo specifications
@@ -189,6 +203,11 @@ examples/                # fully fictional demo specifications
   new org is a config file, not code. See [Multi-organization support](#multi-organization-support).
 - ✅ Agent Management — per-agent Claude model override (or "default"), editable
   without touching `.env` or code.
+- ✅ Authentication & roles — session login, admin vs. user, User Management
+  screen, and a per-user agent-access data model (UI for it not yet built).
 - Extend multi-profile support (persona/language, not just Excel layout) to
   Spec Analyzer — currently STD Generator only.
-- Authentication / roles (deliberately deferred — single local user today).
+- Per-user agent-access picker in User Management (the data model already
+  supports it — see `store.set_user_agent_access()`).
+- Per-user visibility into only *their own* runs/feedback (currently shared
+  across every logged-in user, by design, to keep the first version scoped).

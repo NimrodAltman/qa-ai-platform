@@ -188,3 +188,61 @@ def test_feedback_is_newest_first():
     store.add_feedback(rid, 3, [], "")
     second = store.add_feedback(rid, 5, [], "")
     assert store.list_feedback()[0]["id"] == second
+
+
+# ===== users =====
+
+def test_create_and_get_user():
+    uid = store.create_user("alice", "hash", "salt", "user")
+    user = store.get_user(uid)
+    assert user["username"] == "alice"
+    assert user["role"] == "user"
+    assert store.get_user_by_username("alice")["id"] == uid
+    assert store.get_user_by_username("nobody") is None
+
+
+def test_duplicate_username_raises():
+    store.create_user("bob", "hash", "salt", "user")
+    with pytest.raises(sqlite3.IntegrityError):
+        store.create_user("bob", "hash2", "salt2", "user")
+
+
+def test_list_users_excludes_password_fields():
+    store.create_user("carol", "supersecret-hash", "salt", "admin")
+    users = store.list_users()
+    assert len(users) == 1
+    assert "password_hash" not in users[0]
+    assert "salt" not in users[0]
+
+
+def test_set_user_role():
+    uid = store.create_user("dave", "hash", "salt", "user")
+    assert store.set_user_role(uid, "admin") is True
+    assert store.get_user(uid)["role"] == "admin"
+    assert store.set_user_role(999999, "admin") is False
+
+
+def test_delete_user_and_cascades_agent_access():
+    uid = store.create_user("erin", "hash", "salt", "user")
+    store.set_user_agent_access(uid, ["std_generator"])
+    assert store.delete_user(uid) is True
+    assert store.get_user(uid) is None
+    assert store.get_user_agent_access(uid) == []
+    assert store.delete_user(999999) is False
+
+
+def test_agent_access_defaults_to_empty_meaning_all():
+    uid = store.create_user("frank", "hash", "salt", "user")
+    assert store.get_user_agent_access(uid) == []
+
+
+def test_agent_access_set_and_replace():
+    uid = store.create_user("gina", "hash", "salt", "user")
+    store.set_user_agent_access(uid, ["std_generator", "spec_analyzer"])
+    assert set(store.get_user_agent_access(uid)) == {"std_generator", "spec_analyzer"}
+
+    store.set_user_agent_access(uid, ["spec_analyzer"])  # replaces, not appends
+    assert store.get_user_agent_access(uid) == ["spec_analyzer"]
+
+    store.set_user_agent_access(uid, [])  # clears back to "all"
+    assert store.get_user_agent_access(uid) == []

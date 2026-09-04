@@ -18,6 +18,8 @@ DB_PATH = Path("output/runs.db")
 PRIORITIES = ["Low", "Medium", "High"]
 STATUSES = ["Open", "Reviewed", "Resolved"]
 
+ROLES = ["admin", "user"]
+
 
 def _ensure_column(conn: sqlite3.Connection, table: str, column: str, ddl: str) -> None:
     """Add ``column`` to ``table`` if an older on-disk DB doesn't have it yet."""
@@ -66,6 +68,29 @@ def _connect() -> sqlite3.Connection:
         CREATE TABLE IF NOT EXISTS agent_settings (
             agent_name   TEXT PRIMARY KEY,
             model        TEXT
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS users (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            username       TEXT NOT NULL UNIQUE,
+            password_hash  TEXT NOT NULL,
+            salt           TEXT NOT NULL,
+            role           TEXT NOT NULL,
+            created_at     TEXT NOT NULL
+        )
+        """
+    )
+    # A user with no rows here may run every agent; rows restrict them to a
+    # specific set (schema in place now for a future per-agent-access screen).
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS user_agent_access (
+            user_id      INTEGER NOT NULL REFERENCES users (id),
+            agent_name   TEXT NOT NULL,
+            PRIMARY KEY (user_id, agent_name)
         )
         """
     )
@@ -200,6 +225,76 @@ def set_agent_model(agent_name: str, model: str | None) -> None:
             "INSERT INTO agent_settings (agent_name, model) VALUES (?, ?)"
             " ON CONFLICT(agent_name) DO UPDATE SET model = excluded.model",
             (agent_name, model),
+        )
+
+
+def create_user(username: str, password_hash: str, salt: str, role: str) -> int:
+    """Create a user and return its id. Raises sqlite3.IntegrityError if taken."""
+    created_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    with _connect() as conn:
+        cur = conn.execute(
+            "INSERT INTO users (username, password_hash, salt, role, created_at)"
+            " VALUES (?, ?, ?, ?, ?)",
+            (username, password_hash, salt, role, created_at),
+        )
+        return int(cur.lastrowid)
+
+
+def get_user_by_username(username: str) -> dict | None:
+    with _connect() as conn:
+        row = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+        return dict(row) if row else None
+
+
+def get_user(user_id: int) -> dict | None:
+    with _connect() as conn:
+        row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+        return dict(row) if row else None
+
+
+def list_users() -> list[dict]:
+    """Return every user (without password fields), oldest first."""
+    with _connect() as conn:
+        rows = conn.execute(
+            "SELECT id, username, role, created_at FROM users ORDER BY id"
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+
+def user_count() -> int:
+    with _connect() as conn:
+        return conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+
+
+def set_user_role(user_id: int, role: str) -> bool:
+    with _connect() as conn:
+        cur = conn.execute("UPDATE users SET role = ? WHERE id = ?", (role, user_id))
+        return cur.rowcount > 0
+
+
+def delete_user(user_id: int) -> bool:
+    with _connect() as conn:
+        conn.execute("DELETE FROM user_agent_access WHERE user_id = ?", (user_id,))
+        cur = conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
+        return cur.rowcount > 0
+
+
+def get_user_agent_access(user_id: int) -> list[str]:
+    """Agent names this user is restricted to; an empty list means 'all agents'."""
+    with _connect() as conn:
+        rows = conn.execute(
+            "SELECT agent_name FROM user_agent_access WHERE user_id = ?", (user_id,)
+        ).fetchall()
+        return [row["agent_name"] for row in rows]
+
+
+def set_user_agent_access(user_id: int, agent_names: list[str]) -> None:
+    """Replace this user's agent restriction list (empty = allow all)."""
+    with _connect() as conn:
+        conn.execute("DELETE FROM user_agent_access WHERE user_id = ?", (user_id,))
+        conn.executemany(
+            "INSERT INTO user_agent_access (user_id, agent_name) VALUES (?, ?)",
+            [(user_id, name) for name in agent_names],
         )
 
 

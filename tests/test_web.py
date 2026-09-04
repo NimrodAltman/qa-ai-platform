@@ -8,6 +8,7 @@ from qa_agents.spec_analyzer.models import AnalysisResult
 from qa_agents.spec_analyzer.word_writer import write_report
 from qa_agents.std_generator.excel_writer import write_workbook
 from qa_agents.web import app as webapp
+from qa_agents.web import auth as webauth
 from qa_agents.web import store as webstore
 
 client = TestClient(webapp.app)
@@ -15,8 +16,18 @@ client = TestClient(webapp.app)
 
 @pytest.fixture(autouse=True)
 def _isolate_db(tmp_path, monkeypatch):
-    """Point the run store at a throwaway DB for every web test."""
+    """Point the run store at a throwaway DB, seeded + logged in as admin,
+    for every web test (most endpoints require a session)."""
     monkeypatch.setattr(webstore, "DB_PATH", tmp_path / "runs.db")
+    webauth.ensure_default_admin()
+    client.post("/api/login", data={"username": "admin", "password": "admin"})
+    yield
+    client.post("/api/logout")
+
+
+def _login_as(username: str, password: str) -> None:
+    res = client.post("/api/login", data={"username": username, "password": password})
+    assert res.status_code == 200, res.text
 
 
 def test_health():
@@ -365,3 +376,161 @@ def test_analyze_run_appears_in_history_and_downloads_as_docx(tmp_path, monkeypa
     res = client.get(f"/api/runs/{run['id']}/download")
     assert res.status_code == 200
     assert "wordprocessingml" in res.headers["content-type"]
+
+
+# ===== Auth =====
+
+def _create_user(username: str, password: str, role: str = "user") -> int:
+    res = client.post("/api/users", data={"username": username, "password": password, "role": role})
+    assert res.status_code == 200, res.text
+    return res.json()["id"]
+
+
+def test_index_and_health_are_public():
+    client.post("/api/logout")
+    assert client.get("/").status_code == 200
+    assert client.get("/api/health").status_code == 200
+
+
+def test_me_requires_login():
+    client.post("/api/logout")
+    assert client.get("/api/me").status_code == 401
+
+
+def test_login_wrong_password_rejected():
+    res = client.post("/api/login", data={"username": "admin", "password": "wrong"})
+    assert res.status_code == 401
+
+
+def test_login_unknown_username_rejected():
+    res = client.post("/api/login", data={"username": "nobody", "password": "x"})
+    assert res.status_code == 401
+
+
+def test_login_success_reflected_in_me():
+    res = client.get("/api/me")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["username"] == "admin"
+    assert body["role"] == "admin"
+    assert body["agent_access"] == []
+
+
+def test_logout_clears_session():
+    client.post("/api/logout")
+    assert client.get("/api/me").status_code == 401
+    _login_as("admin", "admin")  # restore for fixture teardown
+
+
+def test_non_admin_cannot_list_feedback():
+    _create_user("regular1", "pw")
+    _login_as("regular1", "pw")
+    assert client.get("/api/feedback").status_code == 403
+
+
+def test_non_admin_cannot_access_agent_settings():
+    _create_user("regular2", "pw")
+    _login_as("regular2", "pw")
+    assert client.get("/api/agent-settings").status_code == 403
+
+
+def test_non_admin_cannot_access_quality_stats():
+    _create_user("regular3", "pw")
+    _login_as("regular3", "pw")
+    assert client.get("/api/quality-stats").status_code == 403
+
+
+def test_non_admin_cannot_manage_users():
+    _create_user("regular4", "pw")
+    _login_as("regular4", "pw")
+    assert client.get("/api/users").status_code == 403
+
+
+def test_regular_user_can_run_agents_by_default(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        webapp, "generate_std",
+        lambda *a, **k: write_workbook(StdResult(), tmp_path / "o.xlsx"),
+    )
+    _create_user("regular5", "pw")
+    _login_as("regular5", "pw")
+    files = {"file": ("spec.docx", b"dummy", "application/octet-stream")}
+    res = client.post("/api/generate", data={"tag": "40100"}, files=files)
+    assert res.status_code == 200
+
+
+def test_agent_access_restricts_generate_and_analyze(tmp_path, monkeypatch):
+    uid = _create_user("restricted1", "pw")
+    webstore.set_user_agent_access(uid, ["spec_analyzer"])
+    monkeypatch.setattr(
+        webapp, "generate_analysis",
+        lambda *a, **k: write_report(AnalysisResult(), tmp_path / "o.docx"),
+    )
+    _login_as("restricted1", "pw")
+
+    files = {"file": ("spec.docx", b"dummy", "application/octet-stream")}
+    res = client.post("/api/generate", data={"tag": "40100"}, files=files)
+    assert res.status_code == 403
+
+    res = client.post("/api/analyze", data={"tag": "40100"}, files=files)
+    assert res.status_code == 200
+
+
+def test_agents_endpoint_filtered_by_access():
+    uid = _create_user("restricted2", "pw")
+    webstore.set_user_agent_access(uid, ["spec_analyzer"])
+    _login_as("restricted2", "pw")
+    names = {a["name"] for a in client.get("/api/agents").json()}
+    assert names == {"spec_analyzer"}
+
+
+def test_create_user_rejects_duplicate_username():
+    _create_user("dupe", "pw")
+    res = client.post("/api/users", data={"username": "dupe", "password": "pw2", "role": "user"})
+    assert res.status_code == 400
+
+
+def test_create_user_rejects_invalid_role():
+    res = client.post("/api/users", data={"username": "badrole", "password": "pw", "role": "superadmin"})
+    assert res.status_code == 400
+
+
+def test_update_user_role():
+    uid = _create_user("promote-me", "pw")
+    res = client.post(f"/api/users/{uid}", data={"role": "admin"})
+    assert res.status_code == 200
+    assert next(u for u in client.get("/api/users").json() if u["id"] == uid)["role"] == "admin"
+
+
+def test_cannot_demote_self():
+    me = client.get("/api/me").json()
+    res = client.post(f"/api/users/{me['id']}", data={"role": "user"})
+    assert res.status_code == 400
+
+
+def test_cannot_delete_self():
+    me = client.get("/api/me").json()
+    res = client.delete(f"/api/users/{me['id']}")
+    assert res.status_code == 400
+
+
+def test_cannot_delete_last_admin():
+    # the only admin is the current user, already covered by test_cannot_delete_self;
+    # this covers deleting the last admin via a DIFFERENT admin session
+    uid = _create_user("second-admin", "pw", role="admin")
+    _login_as("second-admin", "pw")
+    admins = [u for u in client.get("/api/users").json() if u["role"] == "admin"]
+    for a in admins:
+        if a["username"] != "second-admin":
+            res = client.delete(f"/api/users/{a['id']}")
+            assert res.status_code == 200
+    # now second-admin is the only admin left (the original "admin" was deleted above) —
+    # demoting the last admin is blocked
+    res = client.post(f"/api/users/{uid}", data={"role": "user"})
+    assert res.status_code == 400
+
+
+def test_delete_user():
+    uid = _create_user("to-delete", "pw")
+    res = client.delete(f"/api/users/{uid}")
+    assert res.status_code == 200
+    assert all(u["id"] != uid for u in client.get("/api/users").json())

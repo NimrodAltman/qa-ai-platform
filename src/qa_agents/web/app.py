@@ -11,16 +11,26 @@ Requires ANTHROPIC_API_KEY (loaded from a local .env if present).
 
 from __future__ import annotations
 
+import os
 import shutil
 import tempfile
 import uuid
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, Form, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse
+from starlette.middleware.sessions import SessionMiddleware
 
 from . import store
+from .auth import (
+    allowed_agent_names,
+    ensure_default_admin,
+    get_current_user,
+    hash_password,
+    require_admin,
+    verify_password,
+)
 from ..base import get_agent, list_agents
 from ..extraction import SUPPORTED
 from ..llm import AVAILABLE_MODELS
@@ -31,8 +41,13 @@ from ..std_generator.pipeline import generate_std, output_suffix
 from ..std_generator.profile import CRM_HEBREW, PROFILES
 
 load_dotenv()  # pick up ANTHROPIC_API_KEY from a local .env for convenience
+ensure_default_admin()  # first run only: seeds admin/admin if no users exist
 
 app = FastAPI(title="QA AI Platform")
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=os.environ.get("SESSION_SECRET", "dev-insecure-secret-change-me"),
+)
 _STATIC = Path(__file__).parent / "static"
 _XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 _DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -80,15 +95,44 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.post("/api/login")
+async def login(request: Request, username: str = Form(...), password: str = Form(...)) -> dict:
+    user = store.get_user_by_username(username)
+    if user is None or not verify_password(password, user["password_hash"], user["salt"]):
+        raise HTTPException(status_code=401, detail="שם משתמש או סיסמה שגויים")
+    request.session["user_id"] = user["id"]
+    return {"username": user["username"], "role": user["role"]}
+
+
+@app.post("/api/logout")
+async def logout(request: Request) -> dict:
+    request.session.clear()
+    return {"ok": True}
+
+
+@app.get("/api/me")
+def me(user: dict = Depends(get_current_user)) -> dict:
+    return {
+        "id": user["id"],
+        "username": user["username"],
+        "role": user["role"],
+        "agent_access": store.get_user_agent_access(user["id"]),  # [] = every agent
+    }
+
+
 @app.post("/api/generate")
 async def generate(
     file: UploadFile,
+    user: dict = Depends(get_current_user),
     mode: str = Form("tag"),  # "tag" | "whole"
     tag: str = Form(""),
     task_number: str = Form(""),
     output_type: str = Form("both"),  # "both" | "scenarios" | "sql"
     profile: str = Form(CRM_HEBREW.name),
 ) -> FileResponse:
+    allowed = allowed_agent_names(user)
+    if allowed is not None and "std_generator" not in allowed:
+        raise HTTPException(status_code=403, detail="אין הרשאה להריץ סוכן זה")
     suffix = Path(file.filename or "").suffix.lower()
     if suffix not in SUPPORTED:
         raise HTTPException(
@@ -139,10 +183,14 @@ async def generate(
 @app.post("/api/analyze")
 async def analyze(
     file: UploadFile,
+    user: dict = Depends(get_current_user),
     tag: str = Form(""),
     task_number: str = Form(""),
 ) -> FileResponse:
     """Run the Spec Analyzer agent. Empty ``tag`` analyzes the whole spec."""
+    allowed = allowed_agent_names(user)
+    if allowed is not None and "spec_analyzer" not in allowed:
+        raise HTTPException(status_code=403, detail="אין הרשאה להריץ סוכן זה")
     suffix = Path(file.filename or "").suffix.lower()
     if suffix not in SUPPORTED:
         raise HTTPException(
@@ -170,24 +218,28 @@ async def analyze(
 
 
 @app.get("/api/agents")
-def agents() -> list[dict]:
+def agents(user: dict = Depends(get_current_user)) -> list[dict]:
     # every agent accepts the same input formats today (extraction.SUPPORTED);
     # exposed here so the Catalog doesn't have to hardcode it
-    return [{**a, "input_formats": list(SUPPORTED)} for a in list_agents()]
+    allowed = allowed_agent_names(user)
+    result = list_agents()
+    if allowed is not None:
+        result = [a for a in result if a["name"] in allowed]
+    return [{**a, "input_formats": list(SUPPORTED)} for a in result]
 
 
 @app.get("/api/profiles")
-def profiles() -> list[dict]:
+def profiles(user: dict = Depends(get_current_user)) -> list[dict]:
     return [{"name": p.name, "display_name": p.display_name} for p in PROFILES.values()]
 
 
 @app.get("/api/models")
-def models() -> list[str]:
+def models(user: dict = Depends(get_current_user)) -> list[str]:
     return AVAILABLE_MODELS
 
 
 @app.get("/api/agent-settings")
-def agent_settings() -> list[dict]:
+def agent_settings(admin: dict = Depends(require_admin)) -> list[dict]:
     """Per-agent config: current model override (None = use the global default)."""
     return [
         {
@@ -200,7 +252,9 @@ def agent_settings() -> list[dict]:
 
 
 @app.post("/api/agent-settings/{agent_name}")
-async def update_agent_settings(agent_name: str, model: str = Form("")) -> dict:
+async def update_agent_settings(
+    agent_name: str, model: str = Form(""), admin: dict = Depends(require_admin)
+) -> dict:
     """Set (or, with an empty ``model``, clear) an agent's model override."""
     try:
         get_agent(agent_name)
@@ -213,12 +267,12 @@ async def update_agent_settings(agent_name: str, model: str = Form("")) -> dict:
 
 
 @app.get("/api/runs")
-def runs() -> list[dict]:
+def runs(user: dict = Depends(get_current_user)) -> list[dict]:
     return store.list_runs()
 
 
 @app.get("/api/stats")
-def stats() -> dict:
+def stats(user: dict = Depends(get_current_user)) -> dict:
     return store.run_stats()
 
 
@@ -226,7 +280,7 @@ _MIME_BY_SUFFIX = {".xlsx": _XLSX_MIME, ".docx": _DOCX_MIME}
 
 
 @app.get("/api/runs/{run_id}/download")
-def download_run(run_id: int) -> FileResponse:
+def download_run(run_id: int, user: dict = Depends(get_current_user)) -> FileResponse:
     run = store.get_run(run_id)
     if run is None or not Path(run["path"]).is_file():
         raise HTTPException(status_code=404, detail="התוצר לא נמצא")
@@ -236,12 +290,13 @@ def download_run(run_id: int) -> FileResponse:
 
 
 @app.get("/api/feedback/categories")
-def feedback_categories() -> list[str]:
+def feedback_categories(user: dict = Depends(get_current_user)) -> list[str]:
     return FEEDBACK_CATEGORIES
 
 
 @app.post("/api/feedback")
 async def submit_feedback(
+    user: dict = Depends(get_current_user),
     run_id: int = Form(...),
     rating: str = Form(""),
     categories: str = Form(""),  # comma-separated category names
@@ -268,7 +323,7 @@ async def submit_feedback(
 
 
 @app.get("/api/feedback")
-def feedback() -> list[dict]:
+def feedback(admin: dict = Depends(require_admin)) -> list[dict]:
     return store.list_feedback()
 
 
@@ -277,6 +332,7 @@ async def triage_feedback(
     feedback_id: int,
     status: str = Form(""),
     priority: str = Form(""),
+    admin: dict = Depends(require_admin),
 ) -> dict:
     """Admin triage: update a feedback item's status and/or priority."""
     if status and status not in store.STATUSES:
@@ -291,8 +347,66 @@ async def triage_feedback(
 
 
 @app.get("/api/quality-stats")
-def quality_stats() -> dict:
+def quality_stats(admin: dict = Depends(require_admin)) -> dict:
     stats = store.health_stats()
     for entry in stats["category_counts"]:
         entry["action"] = FEEDBACK_CATEGORY_ACTIONS.get(entry["category"], "")
     return stats
+
+
+@app.get("/api/users")
+def users(admin: dict = Depends(require_admin)) -> list[dict]:
+    return store.list_users()
+
+
+@app.post("/api/users")
+async def create_user_endpoint(
+    admin: dict = Depends(require_admin),
+    username: str = Form(...),
+    password: str = Form(...),
+    role: str = Form("user"),
+) -> dict:
+    username = username.strip()
+    if not username or not password:
+        raise HTTPException(status_code=400, detail="שם משתמש וסיסמה הם שדות חובה")
+    if role not in store.ROLES:
+        raise HTTPException(status_code=400, detail=f"role לא תקין: {role!r}")
+    if store.get_user_by_username(username) is not None:
+        raise HTTPException(status_code=400, detail="שם המשתמש כבר תפוס")
+    password_hash, salt = hash_password(password)
+    uid = store.create_user(username, password_hash, salt, role)
+    return {"id": uid}
+
+
+@app.post("/api/users/{user_id}")
+async def update_user_endpoint(
+    user_id: int, role: str = Form(...), admin: dict = Depends(require_admin)
+) -> dict:
+    if role not in store.ROLES:
+        raise HTTPException(status_code=400, detail=f"role לא תקין: {role!r}")
+    target = store.get_user(user_id)
+    if target is None:
+        raise HTTPException(status_code=404, detail="משתמש לא נמצא")
+    if user_id == admin["id"] and role != "admin":
+        raise HTTPException(status_code=400, detail="לא ניתן להסיר הרשאת אדמין מהמשתמש המחובר")
+    if target["role"] == "admin" and role != "admin":
+        remaining_admins = [u for u in store.list_users() if u["role"] == "admin"]
+        if len(remaining_admins) <= 1:
+            raise HTTPException(status_code=400, detail="לא ניתן להסיר את האדמין האחרון")
+    store.set_user_role(user_id, role)
+    return {"ok": True}
+
+
+@app.delete("/api/users/{user_id}")
+async def delete_user_endpoint(user_id: int, admin: dict = Depends(require_admin)) -> dict:
+    if user_id == admin["id"]:
+        raise HTTPException(status_code=400, detail="לא ניתן למחוק את המשתמש המחובר")
+    target = store.get_user(user_id)
+    if target is None:
+        raise HTTPException(status_code=404, detail="משתמש לא נמצא")
+    if target["role"] == "admin":
+        remaining_admins = [u for u in store.list_users() if u["role"] == "admin"]
+        if len(remaining_admins) <= 1:
+            raise HTTPException(status_code=400, detail="לא ניתן למחוק את האדמין האחרון")
+    store.delete_user(user_id)
+    return {"ok": True}
