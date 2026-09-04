@@ -171,10 +171,7 @@
       <h2>Run Agent</h2>
       <div class="field">
         <label class="lbl">סוכן</label>
-        <div class="seg">
-          <label><input type="radio" name="agentKind" value="std" checked>STD Generator</label>
-          <label><input type="radio" name="agentKind" value="analyzer">Spec Analyzer</label>
-        </div>
+        <select id="agentKind"></select>
       </div>
       <p class="sub" id="agentDesc">מפיק תסריטי בדיקה ושאילתות SQL מאפיון, כקובץ Excel.</p>
       <form id="form">
@@ -333,13 +330,11 @@
   }
 
   // ===== Agent Catalog =====
-  const AGENT_KIND_BY_NAME = { std_generator: 'std', spec_analyzer: 'analyzer' };
-
   function openRunAgentFor(agentName){
-    const kind = AGENT_KIND_BY_NAME[agentName];
-    if (kind) {
-      const radio = document.querySelector('input[name="agentKind"][value="' + kind + '"]');
-      if (radio) { radio.checked = true; syncAgentFields(); }
+    const select = document.getElementById('agentKind');
+    if ([...select.options].some(o => o.value === agentName)) {
+      select.value = agentName;
+      syncAgentFields();
     }
     const btn = [...document.querySelectorAll('.nav button')].find(b => b.getAttribute('onclick')?.includes("'run'"));
     show('run', btn);
@@ -433,22 +428,34 @@
   const agentDesc = document.getElementById('agentDesc');
   const mode = () => document.querySelector('input[name="mode"]:checked').value;
   const outType = () => document.querySelector('input[name="out"]:checked').value;
-  const agentKind = () => document.querySelector('input[name="agentKind"]:checked').value;
-
-  const AGENT_DESC = {
-    std: 'מפיק תסריטי בדיקה ושאילתות SQL מאפיון, כקובץ Excel.',
-    analyzer: 'מפיק דוח מוכנות (Word): חוקים עסקיים, ישויות ושדות, פערים והמלצות — לפני תחילת בדיקות.',
-  };
-  const SUBMIT_LABEL = { std: 'הפק STD ⟵', analyzer: 'הפק ניתוח ⟵' };
+  const agentKindSelect = document.getElementById('agentKind');
+  const agentKind = () => agentKindSelect.value;
+  let AGENTS_BY_NAME = {};
 
   function syncAgentFields(){
     const kind = agentKind();
-    stdFields.classList.toggle('hidden', kind !== 'std');
-    analyzerFields.classList.toggle('hidden', kind !== 'analyzer');
-    agentDesc.textContent = AGENT_DESC[kind];
-    submitBtn.textContent = SUBMIT_LABEL[kind];
+    stdFields.classList.toggle('hidden', kind !== 'std_generator');
+    analyzerFields.classList.toggle('hidden', kind !== 'spec_analyzer');
+    agentDesc.textContent = AGENTS_BY_NAME[kind] ? AGENTS_BY_NAME[kind].description : '';
+    submitBtn.textContent = 'הפק תוצר ⟵';
   }
-  document.querySelectorAll('input[name="agentKind"]').forEach(r => r.addEventListener('change', syncAgentFields));
+  agentKindSelect.addEventListener('change', syncAgentFields);
+
+  // populates the agent dropdown from the registry itself, so a new agent
+  // shows up here with no UI change needed
+  async function loadAgentSelector(){
+    try {
+      const res = await fetch('/api/agents');
+      const agentsList = await res.json();
+      AGENTS_BY_NAME = Object.fromEntries(agentsList.map(a => [a.name, a]));
+      agentKindSelect.innerHTML = agentsList
+        .map(a => '<option value="' + a.name + '">' + a.display_name + '</option>')
+        .join('');
+      syncAgentFields();
+    } catch (err) {
+      agentKindSelect.innerHTML = '<option value="">שגיאה בטעינת רשימת הסוכנים</option>';
+    }
+  }
 
   document.querySelectorAll('input[name="mode"]').forEach(r =>
     r.addEventListener('change', () => tagField.classList.toggle('hidden', mode() !== 'tag'))
@@ -466,7 +473,7 @@
     setStatus('run', 'הסוכן עובד על האפיון… זה עשוי לקחת עד דקה.<span class="spinner"></span>');
 
     try {
-      if (selectedAgent === 'std') {
+      if (selectedAgent === 'std_generator') {
         await runStdGenerator(file);
       } else {
         await runSpecAnalyzer(file);
@@ -686,7 +693,8 @@
     }
   }
 
-  loadDashboard();  // initial load — Dashboard is the default screen
+  loadDashboard();     // initial load — Dashboard is the default screen
+  loadAgentSelector(); // populate the Run Agent dropdown up front
 </script>
 </body>
 </html>
