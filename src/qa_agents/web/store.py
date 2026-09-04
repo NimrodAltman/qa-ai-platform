@@ -63,6 +63,10 @@ def _connect() -> sqlite3.Connection:
     # Migrate DBs created before priority/status existed.
     _ensure_column(conn, "feedback", "priority", "priority TEXT NOT NULL DEFAULT 'Medium'")
     _ensure_column(conn, "feedback", "status", "status TEXT NOT NULL DEFAULT 'Open'")
+    # Migrate DBs created before per-user ownership existed (NULL = no owner,
+    # i.e. a run/feedback item predating auth — visible to admins only).
+    _ensure_column(conn, "runs", "user_id", "user_id INTEGER")
+    _ensure_column(conn, "feedback", "user_id", "user_id INTEGER")
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS agent_settings (
@@ -104,28 +108,36 @@ def add_run(
     path: str,
     filename: str | None = None,
     status: str = "completed",
+    user_id: int | None = None,
 ) -> int:
     """Record a completed run and return its id.
 
     ``path`` is the (unique) file on disk; ``filename`` is the friendly name
     shown and used when downloading (defaults to the path's basename).
+    ``user_id`` is the owner (None = no owner, e.g. a pre-auth legacy run).
     """
     if filename is None:
         filename = Path(path).name
     created_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
     with _connect() as conn:
         cur = conn.execute(
-            "INSERT INTO runs (created_at, tag, task_number, output_type, filename, path, status)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (created_at, tag, task_number, output_type, filename, path, status),
+            "INSERT INTO runs (created_at, tag, task_number, output_type, filename, path, status, user_id)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (created_at, tag, task_number, output_type, filename, path, status, user_id),
         )
         return int(cur.lastrowid)
 
 
-def list_runs() -> list[dict]:
-    """Return all runs, newest first."""
+def list_runs(user_id: int | None = None) -> list[dict]:
+    """Return runs, newest first. ``user_id`` scopes to that owner; omit for all
+    (admins) — every non-admin call must pass their own id."""
     with _connect() as conn:
-        rows = conn.execute("SELECT * FROM runs ORDER BY id DESC").fetchall()
+        if user_id is None:
+            rows = conn.execute("SELECT * FROM runs ORDER BY id DESC").fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM runs WHERE user_id = ? ORDER BY id DESC", (user_id,)
+            ).fetchall()
         return [dict(row) for row in rows]
 
 
@@ -142,13 +154,17 @@ def add_feedback(
     categories: list[str],
     comment: str,
     priority: str = "Medium",
+    user_id: int | None = None,
 ) -> int:
-    """Record feedback for a run and return its id. Starts with status 'Open'."""
+    """Record feedback for a run and return its id. Starts with status 'Open'.
+
+    ``user_id`` is the submitter (None = no owner, e.g. a pre-auth legacy item).
+    """
     created_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
     with _connect() as conn:
         cur = conn.execute(
-            "INSERT INTO feedback (run_id, created_at, rating, categories, comment, priority)"
-            " VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO feedback (run_id, created_at, rating, categories, comment, priority, user_id)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?)",
             (
                 run_id,
                 created_at,
@@ -156,6 +172,7 @@ def add_feedback(
                 json.dumps(categories, ensure_ascii=False),
                 comment,
                 priority,
+                user_id,
             ),
         )
         return int(cur.lastrowid)
@@ -191,16 +208,28 @@ def get_feedback(feedback_id: int) -> dict | None:
     return item
 
 
-def list_feedback() -> list[dict]:
-    """Return all feedback with its run's file name, newest first."""
+def list_feedback(user_id: int | None = None) -> list[dict]:
+    """Return feedback with its run's file name, newest first. ``user_id``
+    scopes to that submitter; omit for all (admins)."""
     with _connect() as conn:
-        rows = conn.execute(
-            """
-            SELECT feedback.*, runs.filename AS run_filename
-            FROM feedback JOIN runs ON runs.id = feedback.run_id
-            ORDER BY feedback.id DESC
-            """
-        ).fetchall()
+        if user_id is None:
+            rows = conn.execute(
+                """
+                SELECT feedback.*, runs.filename AS run_filename
+                FROM feedback JOIN runs ON runs.id = feedback.run_id
+                ORDER BY feedback.id DESC
+                """
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """
+                SELECT feedback.*, runs.filename AS run_filename
+                FROM feedback JOIN runs ON runs.id = feedback.run_id
+                WHERE feedback.user_id = ?
+                ORDER BY feedback.id DESC
+                """,
+                (user_id,),
+            ).fetchall()
     result = []
     for row in rows:
         item = dict(row)
@@ -298,13 +327,23 @@ def set_user_agent_access(user_id: int, agent_names: list[str]) -> None:
         )
 
 
-def run_stats() -> dict:
-    """Return aggregate counts for the dashboard."""
+def run_stats(user_id: int | None = None) -> dict:
+    """Return aggregate counts for the dashboard. ``user_id`` scopes to that
+    owner; omit for all (admins)."""
     with _connect() as conn:
-        total = conn.execute("SELECT COUNT(*) FROM runs").fetchone()[0]
-        rows = conn.execute(
-            "SELECT output_type, COUNT(*) AS c FROM runs GROUP BY output_type"
-        ).fetchall()
+        if user_id is None:
+            total = conn.execute("SELECT COUNT(*) FROM runs").fetchone()[0]
+            rows = conn.execute(
+                "SELECT output_type, COUNT(*) AS c FROM runs GROUP BY output_type"
+            ).fetchall()
+        else:
+            total = conn.execute(
+                "SELECT COUNT(*) FROM runs WHERE user_id = ?", (user_id,)
+            ).fetchone()[0]
+            rows = conn.execute(
+                "SELECT output_type, COUNT(*) AS c FROM runs WHERE user_id = ? GROUP BY output_type",
+                (user_id,),
+            ).fetchall()
     by_type = {"both": 0, "scenarios": 0, "sql": 0}
     for row in rows:
         by_type[row["output_type"]] = row["c"]

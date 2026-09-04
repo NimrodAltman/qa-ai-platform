@@ -422,10 +422,12 @@ def test_logout_clears_session():
     _login_as("admin", "admin")  # restore for fixture teardown
 
 
-def test_non_admin_cannot_list_feedback():
+def test_non_admin_can_list_feedback_scoped_to_their_own():
     _create_user("regular1", "pw")
     _login_as("regular1", "pw")
-    assert client.get("/api/feedback").status_code == 403
+    res = client.get("/api/feedback")
+    assert res.status_code == 200
+    assert res.json() == []  # hasn't submitted any feedback yet
 
 
 def test_non_admin_cannot_access_agent_settings():
@@ -534,3 +536,107 @@ def test_delete_user():
     res = client.delete(f"/api/users/{uid}")
     assert res.status_code == 200
     assert all(u["id"] != uid for u in client.get("/api/users").json())
+
+
+# ===== Per-user data isolation (item 3) =====
+
+def test_non_admin_sees_only_own_runs(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        webapp, "generate_std",
+        lambda *a, **k: write_workbook(StdResult(), tmp_path / "o.xlsx"),
+    )
+    admin_run_id = _make_run(tmp_path, monkeypatch)  # created while logged in as admin
+
+    _create_user("owner1", "pw")
+    _login_as("owner1", "pw")
+    own_run_id = _make_run(tmp_path, monkeypatch)  # created while logged in as owner1
+
+    visible_ids = {r["id"] for r in client.get("/api/runs").json()}
+    assert visible_ids == {own_run_id}
+    assert admin_run_id not in visible_ids
+
+
+def test_admin_sees_every_users_runs(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        webapp, "generate_std",
+        lambda *a, **k: write_workbook(StdResult(), tmp_path / "o.xlsx"),
+    )
+    admin_run_id = _make_run(tmp_path, monkeypatch)
+
+    _create_user("owner2", "pw")
+    _login_as("owner2", "pw")
+    own_run_id = _make_run(tmp_path, monkeypatch)
+
+    _login_as("admin", "admin")
+    visible_ids = {r["id"] for r in client.get("/api/runs").json()}
+    assert {admin_run_id, own_run_id} <= visible_ids
+
+
+def test_non_admin_cannot_download_others_run(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        webapp, "generate_std",
+        lambda *a, **k: write_workbook(StdResult(), tmp_path / "o.xlsx"),
+    )
+    admin_run_id = _make_run(tmp_path, monkeypatch)
+
+    _create_user("owner3", "pw")
+    _login_as("owner3", "pw")
+    res = client.get(f"/api/runs/{admin_run_id}/download")
+    assert res.status_code == 404
+
+
+def test_admin_can_download_any_users_run(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        webapp, "generate_std",
+        lambda *a, **k: write_workbook(StdResult(), tmp_path / "o.xlsx"),
+    )
+    _create_user("owner4", "pw")
+    _login_as("owner4", "pw")
+    own_run_id = _make_run(tmp_path, monkeypatch)
+
+    _login_as("admin", "admin")
+    res = client.get(f"/api/runs/{own_run_id}/download")
+    assert res.status_code == 200
+
+
+def test_non_admin_stats_scoped_to_own_runs(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        webapp, "generate_std",
+        lambda *a, **k: write_workbook(StdResult(), tmp_path / "o.xlsx"),
+    )
+    _make_run(tmp_path, monkeypatch)  # admin's run
+
+    _create_user("owner5", "pw")
+    _login_as("owner5", "pw")
+    assert client.get("/api/stats").json()["total"] == 0
+    _make_run(tmp_path, monkeypatch)
+    assert client.get("/api/stats").json()["total"] == 1
+
+
+def test_non_admin_cannot_submit_feedback_on_others_run(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        webapp, "generate_std",
+        lambda *a, **k: write_workbook(StdResult(), tmp_path / "o.xlsx"),
+    )
+    admin_run_id = _make_run(tmp_path, monkeypatch)
+
+    _create_user("owner6", "pw")
+    _login_as("owner6", "pw")
+    res = client.post("/api/feedback", data={"run_id": admin_run_id, "rating": "5"})
+    assert res.status_code == 404
+
+
+def test_feedback_list_scoped_to_submitter_admin_sees_all(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        webapp, "generate_std",
+        lambda *a, **k: write_workbook(StdResult(), tmp_path / "o.xlsx"),
+    )
+    _create_user("owner7", "pw")
+    _login_as("owner7", "pw")
+    own_run_id = _make_run(tmp_path, monkeypatch)
+    fid = client.post("/api/feedback", data={"run_id": own_run_id, "rating": "4"}).json()["id"]
+
+    assert {f["id"] for f in client.get("/api/feedback").json()} == {fid}
+
+    _login_as("admin", "admin")
+    assert fid in {f["id"] for f in client.get("/api/feedback").json()}

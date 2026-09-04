@@ -175,7 +175,8 @@ async def generate(
         raise HTTPException(status_code=500, detail=f"ההפקה נכשלה: {exc}")
 
     store.add_run(
-        tag.strip() or None, task_number.strip(), output_type, str(out), filename=display_name
+        tag.strip() or None, task_number.strip(), output_type, str(out),
+        filename=display_name, user_id=user["id"],
     )
     return FileResponse(out, filename=display_name, media_type=_XLSX_MIME)
 
@@ -213,7 +214,10 @@ async def analyze(
     except Exception as exc:  # surface generation failures to the UI
         raise HTTPException(status_code=500, detail=f"הניתוח נכשל: {exc}")
 
-    store.add_run(tag.strip() or None, task_number.strip(), "analysis", str(out), filename=display_name)
+    store.add_run(
+        tag.strip() or None, task_number.strip(), "analysis", str(out),
+        filename=display_name, user_id=user["id"],
+    )
     return FileResponse(out, filename=display_name, media_type=_DOCX_MIME)
 
 
@@ -268,12 +272,12 @@ async def update_agent_settings(
 
 @app.get("/api/runs")
 def runs(user: dict = Depends(get_current_user)) -> list[dict]:
-    return store.list_runs()
+    return store.list_runs(user_id=None if user["role"] == "admin" else user["id"])
 
 
 @app.get("/api/stats")
 def stats(user: dict = Depends(get_current_user)) -> dict:
-    return store.run_stats()
+    return store.run_stats(user_id=None if user["role"] == "admin" else user["id"])
 
 
 _MIME_BY_SUFFIX = {".xlsx": _XLSX_MIME, ".docx": _DOCX_MIME}
@@ -283,6 +287,8 @@ _MIME_BY_SUFFIX = {".xlsx": _XLSX_MIME, ".docx": _DOCX_MIME}
 def download_run(run_id: int, user: dict = Depends(get_current_user)) -> FileResponse:
     run = store.get_run(run_id)
     if run is None or not Path(run["path"]).is_file():
+        raise HTTPException(status_code=404, detail="התוצר לא נמצא")
+    if user["role"] != "admin" and run["user_id"] != user["id"]:
         raise HTTPException(status_code=404, detail="התוצר לא נמצא")
     suffix = Path(run["filename"]).suffix.lower()
     media_type = _MIME_BY_SUFFIX.get(suffix, "application/octet-stream")
@@ -303,7 +309,10 @@ async def submit_feedback(
     comment: str = Form(""),
     priority: str = Form("Medium"),
 ) -> dict:
-    if store.get_run(run_id) is None:
+    run = store.get_run(run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="ההרצה לא נמצאה")
+    if user["role"] != "admin" and run["user_id"] != user["id"]:
         raise HTTPException(status_code=404, detail="ההרצה לא נמצאה")
 
     rating_value = int(rating) if rating.strip() else None
@@ -318,13 +327,15 @@ async def submit_feedback(
     if priority not in store.PRIORITIES:
         raise HTTPException(status_code=400, detail=f"עדיפות לא תקינה: {priority!r}")
 
-    fid = store.add_feedback(run_id, rating_value, cats, comment.strip(), priority=priority)
+    fid = store.add_feedback(
+        run_id, rating_value, cats, comment.strip(), priority=priority, user_id=user["id"]
+    )
     return {"id": fid}
 
 
 @app.get("/api/feedback")
-def feedback(admin: dict = Depends(require_admin)) -> list[dict]:
-    return store.list_feedback()
+def feedback(user: dict = Depends(get_current_user)) -> list[dict]:
+    return store.list_feedback(user_id=None if user["role"] == "admin" else user["id"])
 
 
 @app.post("/api/feedback/{feedback_id}")

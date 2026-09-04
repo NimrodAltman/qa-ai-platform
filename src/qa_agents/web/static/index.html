@@ -346,6 +346,12 @@
       <p class="sub">כל הפידבקים שהוגשו — עדכן סטטוס וטיפול ישירות מהטבלה.</p>
       <div id="fbListArea"><div class="empty">טוען…</div></div>
     </div>
+
+    <div class="card" id="myFeedbackCard" data-nonadmin="1">
+      <h2>הפידבק שלי</h2>
+      <p class="sub">כל הפידבקים ששלחת.</p>
+      <div id="myFeedbackArea"><div class="empty">טוען…</div></div>
+    </div>
   </section>
 
   <!-- ===== Health Dashboard ===== -->
@@ -723,6 +729,27 @@
     }
 
     if (CURRENT_USER && CURRENT_USER.role === 'admin') loadFeedbackList();
+    else loadMyFeedbackList();
+  }
+
+  async function loadMyFeedbackList(){
+    const area = document.getElementById('myFeedbackArea');
+    area.innerHTML = '<div class="empty">טוען…</div>';
+    try {
+      const items = await (await fetch('/api/feedback')).json();
+      if (!items.length) { area.innerHTML = '<div class="empty">עוד לא שלחת פידבק.</div>'; return; }
+      let rows = '';
+      for (const f of items.slice(0, 20)){
+        const when = new Date(f.created_at).toLocaleString('he-IL');
+        const stars = f.rating ? '★'.repeat(f.rating) + '☆'.repeat(5 - f.rating) : '—';
+        rows += '<tr><td>' + when + '</td><td>#' + f.run_id + ' ' + f.run_filename + '</td><td>' + stars +
+          '</td><td>' + (f.categories.join(', ') || '—') + '</td><td>' + (f.comment || '—') +
+          '</td><td>' + STATUS_LABEL[f.status] + '</td></tr>';
+      }
+      area.innerHTML = '<table><thead><tr><th>תאריך</th><th>הרצה</th><th>דירוג</th><th>קטגוריות</th><th>הערה</th><th>סטטוס</th></tr></thead><tbody>' + rows + '</tbody></table>';
+    } catch (err) {
+      area.innerHTML = '<div class="empty">שגיאה: ' + err.message + '</div>';
+    }
   }
 
   async function loadFeedbackList(){
@@ -782,7 +809,8 @@
       }
       fbStatus.className = 'status show ok'; fbStatus.textContent = '✅ הפידבק נשלח, תודה!';
       document.getElementById('fbForm').reset();
-      loadFeedbackList();
+      if (CURRENT_USER && CURRENT_USER.role === 'admin') loadFeedbackList();
+      else loadMyFeedbackList();
     } catch (err) {
       fbStatus.className = 'status show err'; fbStatus.textContent = '❌ שגיאת רשת: ' + err.message;
     } finally {
@@ -941,6 +969,7 @@
   function applyPermissions(){
     const isAdmin = CURRENT_USER && CURRENT_USER.role === 'admin';
     document.querySelectorAll('[data-admin="1"]').forEach(el => el.hidden = !isAdmin);
+    document.querySelectorAll('[data-nonadmin="1"]').forEach(el => el.hidden = isAdmin);
   }
 
   function showLogin(){

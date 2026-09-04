@@ -246,3 +246,45 @@ def test_agent_access_set_and_replace():
 
     store.set_user_agent_access(uid, [])  # clears back to "all"
     assert store.get_user_agent_access(uid) == []
+
+
+# ===== per-user data ownership (runs/feedback) =====
+
+def test_list_runs_scoped_by_owner():
+    u1 = store.create_user("u1", "h", "s", "user")
+    u2 = store.create_user("u2", "h", "s", "user")
+    store.add_run("1", "1", "both", "output/a.xlsx", user_id=u1)
+    store.add_run("2", "2", "both", "output/b.xlsx", user_id=u2)
+
+    assert [r["user_id"] for r in store.list_runs(user_id=u1)] == [u1]
+    assert {r["user_id"] for r in store.list_runs()} == {u1, u2}  # None = all
+
+
+def test_run_stats_scoped_by_owner():
+    u1 = store.create_user("u1", "h", "s", "user")
+    u2 = store.create_user("u2", "h", "s", "user")
+    store.add_run("1", "1", "sql", "output/a.xlsx", user_id=u1)
+    store.add_run("2", "2", "sql", "output/b.xlsx", user_id=u2)
+    store.add_run("3", "3", "sql", "output/c.xlsx", user_id=u2)
+
+    assert store.run_stats(user_id=u1)["total"] == 1
+    assert store.run_stats(user_id=u2)["total"] == 2
+    assert store.run_stats()["total"] == 3
+
+
+def test_list_feedback_scoped_by_submitter():
+    u1 = store.create_user("u1", "h", "s", "user")
+    u2 = store.create_user("u2", "h", "s", "user")
+    rid = store.add_run("1", "1", "both", "output/a.xlsx")
+    store.add_feedback(rid, 5, [], "from u1", user_id=u1)
+    store.add_feedback(rid, 3, [], "from u2", user_id=u2)
+
+    assert [f["user_id"] for f in store.list_feedback(user_id=u1)] == [u1]
+    assert {f["user_id"] for f in store.list_feedback()} == {u1, u2}  # None = all
+
+
+def test_run_and_feedback_default_to_no_owner():
+    rid = store.add_run("1", "1", "both", "output/a.xlsx")
+    assert store.get_run(rid)["user_id"] is None
+    fid = store.add_feedback(rid, 5, [], "")
+    assert store.get_feedback(fid)["user_id"] is None
