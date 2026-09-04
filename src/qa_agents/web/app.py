@@ -21,6 +21,7 @@ from fastapi import FastAPI, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse
 
 from . import store
+from ..base import list_agents
 from ..extraction import SUPPORTED
 from ..spec_analyzer.pipeline import generate_analysis
 from ..std_generator.pipeline import generate_std, output_suffix
@@ -151,6 +152,11 @@ async def analyze(
 
     store.add_run(tag.strip() or None, task_number.strip(), "analysis", str(out), filename=display_name)
     return FileResponse(out, filename=display_name, media_type=_DOCX_MIME)
+
+
+@app.get("/api/agents")
+def agents() -> list[dict]:
+    return list_agents()
 
 
 @app.get("/api/runs")

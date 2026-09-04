@@ -60,6 +60,9 @@ STD_SCHEMA = {
 
 class StdGeneratorAgent(BaseAgent):
     name = "std_generator"
+    display_name = "STD Generator"
+    description = "מפיק תסריטי בדיקה ושאילתות SQL מאפיון, לבדיקה שיטתית של תהליך."
+    output_format = "Excel (.xlsx)"
 
     def __init__(
         self,

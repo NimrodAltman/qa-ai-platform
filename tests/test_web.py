@@ -77,6 +77,16 @@ def test_generate_rejects_unsupported_extension():
     assert res.status_code == 400
 
 
+def test_agents_endpoint_lists_registered_agents():
+    res = client.get("/api/agents")
+    assert res.status_code == 200
+    by_name = {a["name"]: a for a in res.json()}
+    for name in ("std_generator", "spec_analyzer"):
+        assert by_name[name]["display_name"]
+        assert by_name[name]["description"]
+        assert by_name[name]["output_format"]
+
+
 def test_runs_endpoint_lists_a_generated_run(tmp_path, monkeypatch):
     monkeypatch.setattr(
         webapp, "generate_std",

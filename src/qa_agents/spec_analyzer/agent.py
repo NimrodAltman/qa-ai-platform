@@ -42,6 +42,9 @@ ANALYSIS_SCHEMA = {
 
 class SpecAnalyzerAgent(BaseAgent):
     name = "spec_analyzer"
+    display_name = "Spec Analyzer"
+    description = "בודק מוכנות אפיון לפני תחילת בדיקות: חוקים עסקיים, ישויות ושדות, פערים והמלצות."
+    output_format = "Word (.docx)"
 
     def __init__(self, completer: Completer | None = None, model: str | None = None) -> None:
         model = model or default_model()
