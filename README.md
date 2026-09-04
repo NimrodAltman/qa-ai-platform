@@ -104,8 +104,9 @@ src/qa_agents/
 │   ├── excel_writer.py  # StdResult + profile → .xlsx
 │   ├── pipeline.py      # extract → agent → excel
 │   └── __main__.py      # CLI
-└── web/                 # FastAPI app + Run Agent UI
-    ├── app.py
+└── web/                 # FastAPI app + Agent Hub UI
+    ├── app.py           # routes: generate, runs, feedback, quality-stats
+    ├── store.py         # SQLite-backed run/feedback persistence
     └── static/index.html
 tests/                   # unit + end-to-end tests (mocked LLM)
 examples/                # fully fictional demo specifications
@@ -113,7 +114,10 @@ examples/                # fully fictional demo specifications
 
 ## Roadmap
 
-- Additional hub screens (run history, output center, feedback, health).
-- Additional agents on the same base (SQL population, spec analysis).
+- ✅ Hub screens: Dashboard, Run Agent, Output Center, Feedback Center (with
+  triage), Health Dashboard.
+- A second agent on the same base — process/specification analysis (Word output).
+- Agent Catalog / Agent Management screens, once a second real agent exists to
+  design them against.
 - Multi-profile support so a new organization is a config file, not code.
-```
+- Authentication / roles (deliberately deferred — single local user today).

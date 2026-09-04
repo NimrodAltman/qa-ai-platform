@@ -1,7 +1,6 @@
 @echo off
 REM Double-click this file to start the QA AI Platform web server.
 cd /d "%~dp0"
-set PYTHONPATH=src
 echo ============================================
 echo   QA AI Platform - starting web server...
 echo   Open http://localhost:8000 in your browser
