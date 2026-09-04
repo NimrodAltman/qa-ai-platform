@@ -45,7 +45,7 @@ def test_generate_returns_xlsx(tmp_path, monkeypatch):
 def test_generate_maps_mode_and_output_type(tmp_path, monkeypatch):
     captured = {}
 
-    def fake_generate(spec_path, tag, output_path, scenarios=True, sql=True, profile=None):
+    def fake_generate(spec_path, tag, output_path, agent=None, scenarios=True, sql=True, profile=None):
         captured.update(tag=tag, output_path=str(output_path), scenarios=scenarios, sql=sql)
         return write_workbook(StdResult(), tmp_path / "o.xlsx")
 
@@ -77,6 +77,53 @@ def test_generate_rejects_unsupported_extension():
     assert res.status_code == 400
 
 
+def test_agent_settings_defaults_to_null_model():
+    res = client.get("/api/agent-settings")
+    assert res.status_code == 200
+    by_name = {a["name"]: a for a in res.json()}
+    assert by_name["std_generator"]["model"] is None
+
+
+def test_agent_settings_update_and_clear():
+    res = client.post("/api/agent-settings/std_generator", data={"model": "claude-haiku-4-5"})
+    assert res.status_code == 200
+
+    by_name = {a["name"]: a for a in client.get("/api/agent-settings").json()}
+    assert by_name["std_generator"]["model"] == "claude-haiku-4-5"
+
+    res = client.post("/api/agent-settings/std_generator", data={"model": ""})
+    assert res.status_code == 200
+    by_name = {a["name"]: a for a in client.get("/api/agent-settings").json()}
+    assert by_name["std_generator"]["model"] is None
+
+
+def test_agent_settings_rejects_unknown_agent():
+    res = client.post("/api/agent-settings/not-a-real-agent", data={"model": "claude-opus-5"})
+    assert res.status_code == 404
+
+
+def test_agent_settings_rejects_unknown_model():
+    res = client.post("/api/agent-settings/std_generator", data={"model": "gpt-5"})
+    assert res.status_code == 400
+
+
+def test_generate_uses_configured_model(tmp_path, monkeypatch):
+    captured = {}
+
+    def fake_generate(spec_path, tag, output_path, agent=None, scenarios=True, sql=True, profile=None):
+        captured["model"] = agent.model
+        return write_workbook(StdResult(), tmp_path / "o.xlsx")
+
+    monkeypatch.setattr(webapp, "generate_std", fake_generate)
+    client.post("/api/agent-settings/std_generator", data={"model": "claude-haiku-4-5"})
+
+    files = {"file": ("spec.docx", b"dummy", "application/octet-stream")}
+    res = client.post("/api/generate", data={"tag": "40100"}, files=files)
+
+    assert res.status_code == 200
+    assert captured["model"] == "claude-haiku-4-5"
+
+
 def test_profiles_endpoint_lists_both_profiles():
     res = client.get("/api/profiles")
     assert res.status_code == 200
@@ -95,7 +142,7 @@ def test_generate_rejects_unknown_profile():
 def test_generate_passes_selected_profile_through(tmp_path, monkeypatch):
     captured = {}
 
-    def fake_generate(spec_path, tag, output_path, scenarios=True, sql=True, profile=None):
+    def fake_generate(spec_path, tag, output_path, agent=None, scenarios=True, sql=True, profile=None):
         captured["profile"] = profile.name
         return write_workbook(StdResult(), tmp_path / "o.xlsx")
 
@@ -118,6 +165,8 @@ def test_agents_endpoint_lists_registered_agents():
         assert by_name[name]["display_name"]
         assert by_name[name]["description"]
         assert by_name[name]["output_format"]
+        # both agents accept the same input formats (extraction.SUPPORTED)
+        assert set(by_name[name]["input_formats"]) == {".docx", ".xlsx", ".pdf"}
 
 
 def test_runs_endpoint_lists_a_generated_run(tmp_path, monkeypatch):
@@ -284,7 +333,7 @@ def test_analyze_returns_docx(tmp_path, monkeypatch):
 def test_analyze_defaults_to_whole_spec_when_tag_empty(tmp_path, monkeypatch):
     captured = {}
 
-    def fake_analyze(spec_path, tag, output_path):
+    def fake_analyze(spec_path, tag, output_path, agent=None):
         captured["tag"] = tag
         return write_report(AnalysisResult(), tmp_path / "o.docx")
 

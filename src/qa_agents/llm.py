@@ -13,6 +13,9 @@ from typing import Callable
 
 DEFAULT_MODEL = "claude-opus-5"
 
+# Models selectable per-agent from the Agent Management screen.
+AVAILABLE_MODELS = ["claude-opus-5", "claude-sonnet-5", "claude-haiku-4-5"]
+
 # A completer takes (system_prompt, user_prompt) and returns the model's raw
 # JSON text. This is the seam that isolates an agent from the LLM SDK.
 Completer = Callable[[str, str], str]

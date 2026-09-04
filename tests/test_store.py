@@ -30,6 +30,21 @@ def test_get_run_and_missing():
     assert store.get_run(9999) is None
 
 
+def test_agent_model_defaults_to_none():
+    assert store.get_agent_model("std_generator") is None
+
+
+def test_agent_model_set_and_clear():
+    store.set_agent_model("std_generator", "claude-haiku-4-5")
+    assert store.get_agent_model("std_generator") == "claude-haiku-4-5"
+
+    store.set_agent_model("std_generator", "claude-sonnet-5")  # overwrite
+    assert store.get_agent_model("std_generator") == "claude-sonnet-5"
+
+    store.set_agent_model("std_generator", None)  # clear
+    assert store.get_agent_model("std_generator") is None
+
+
 def test_list_is_newest_first():
     store.add_run("1", "1", "both", "output/a.xlsx")
     second = store.add_run("2", "2", "sql", "output/b.xlsx")

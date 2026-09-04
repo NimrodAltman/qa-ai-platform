@@ -21,9 +21,12 @@ from fastapi import FastAPI, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse
 
 from . import store
-from ..base import list_agents
+from ..base import get_agent, list_agents
 from ..extraction import SUPPORTED
+from ..llm import AVAILABLE_MODELS
+from ..spec_analyzer.agent import SpecAnalyzerAgent
 from ..spec_analyzer.pipeline import generate_analysis
+from ..std_generator.agent import StdGeneratorAgent
 from ..std_generator.pipeline import generate_std, output_suffix
 from ..std_generator.profile import CRM_HEBREW, PROFILES
 
@@ -116,9 +119,13 @@ async def generate(
         spec_path = tmp.name
 
     try:
+        chosen_profile = PROFILES[profile]
+        agent = StdGeneratorAgent(
+            model=store.get_agent_model("std_generator"), profile=chosen_profile
+        )
         out = generate_std(
             spec_path, agent_tag, unique_path,
-            scenarios=scenarios, sql=sql, profile=PROFILES[profile],
+            agent=agent, scenarios=scenarios, sql=sql, profile=chosen_profile,
         )
     except Exception as exc:  # surface generation failures to the UI
         raise HTTPException(status_code=500, detail=f"ההפקה נכשלה: {exc}")
@@ -153,7 +160,8 @@ async def analyze(
         spec_path = tmp.name
 
     try:
-        out = generate_analysis(spec_path, tag.strip() or None, unique_path)
+        agent = SpecAnalyzerAgent(model=store.get_agent_model("spec_analyzer"))
+        out = generate_analysis(spec_path, tag.strip() or None, unique_path, agent=agent)
     except Exception as exc:  # surface generation failures to the UI
         raise HTTPException(status_code=500, detail=f"הניתוח נכשל: {exc}")
 
@@ -163,12 +171,45 @@ async def analyze(
 
 @app.get("/api/agents")
 def agents() -> list[dict]:
-    return list_agents()
+    # every agent accepts the same input formats today (extraction.SUPPORTED);
+    # exposed here so the Catalog doesn't have to hardcode it
+    return [{**a, "input_formats": list(SUPPORTED)} for a in list_agents()]
 
 
 @app.get("/api/profiles")
 def profiles() -> list[dict]:
     return [{"name": p.name, "display_name": p.display_name} for p in PROFILES.values()]
+
+
+@app.get("/api/models")
+def models() -> list[str]:
+    return AVAILABLE_MODELS
+
+
+@app.get("/api/agent-settings")
+def agent_settings() -> list[dict]:
+    """Per-agent config: current model override (None = use the global default)."""
+    return [
+        {
+            "name": a["name"],
+            "display_name": a["display_name"],
+            "model": store.get_agent_model(a["name"]),
+        }
+        for a in list_agents()
+    ]
+
+
+@app.post("/api/agent-settings/{agent_name}")
+async def update_agent_settings(agent_name: str, model: str = Form("")) -> dict:
+    """Set (or, with an empty ``model``, clear) an agent's model override."""
+    try:
+        get_agent(agent_name)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"סוכן לא נמצא: {agent_name!r}")
+    if model and model not in AVAILABLE_MODELS:
+        raise HTTPException(status_code=400, detail=f"מודל לא תקין: {model!r}")
+    store.set_agent_model(agent_name, model or None)
+    return {"ok": True}
 
 
 @app.get("/api/runs")

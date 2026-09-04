@@ -82,6 +82,8 @@
   .agentCard{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:22px;box-shadow:var(--soft)}
   .agentCard h3{margin:0 0 8px;font-size:18px}
   .agentCard p{color:var(--muted);font-size:14px;line-height:1.6;min-height:44px;margin:0 0 14px}
+  .metaLine{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+  .metaLbl{font-size:12px;color:var(--muted);font-weight:800}
   .statcard{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px;box-shadow:var(--soft)}
   .statcard .stat{font-size:30px;font-weight:950;color:#1d4ed8}
   .statcard b{display:block;margin-top:4px}.statcard .muted{color:var(--muted);font-size:13px}
@@ -118,6 +120,7 @@
     <button onclick="show('outputs',this)"><span class="ico">📦</span>Output Center</button>
     <button onclick="show('feedback',this)"><span class="ico">💬</span>Feedback Center</button>
     <button onclick="show('health',this)"><span class="ico">📊</span>Health Dashboard</button>
+    <button onclick="show('management',this)"><span class="ico">⚙</span>Agent Management</button>
   </div>
 </aside>
 
@@ -318,6 +321,22 @@
     <h2 class="sectionTitle">בעיות נפוצות</h2>
     <div class="card"><div id="commonIssuesArea"><div class="empty">טוען…</div></div></div>
   </section>
+
+  <!-- ===== Agent Management ===== -->
+  <section id="management" class="screen">
+    <div class="topRow">
+      <h1>⚙ Agent Management</h1>
+      <button class="btn ghost" onclick="loadAgentManagement()">רענן</button>
+    </div>
+    <div class="card">
+      <h2>מודל ברירת מחדל לפי סוכן</h2>
+      <p class="sub">
+        קובע איזה מודל Claude סוכן משתמש בו. "ברירת מחדל" אומר להשתמש בהגדרה
+        הגלובלית (משתנה הסביבה QA_MODEL, או Opus אם לא הוגדר).
+      </p>
+      <div id="managementArea"><div class="empty">טוען…</div></div>
+    </div>
+  </section>
 </main>
 
 <script>
@@ -331,6 +350,7 @@
     if (id === 'catalog') loadCatalog();
     if (id === 'feedback') loadFeedbackScreen();
     if (id === 'health') loadHealthDashboard();
+    if (id === 'management') loadAgentManagement();
   }
 
   // ===== Agent Catalog =====
@@ -351,14 +371,21 @@
       const res = await fetch('/api/agents');
       const agentsList = await res.json();
       if (!agentsList.length) { area.innerHTML = '<div class="empty">אין סוכנים רשומים.</div>'; return; }
-      area.innerHTML = agentsList.map(a =>
-        '<div class="agentCard">' +
-          '<h3>' + a.display_name + '</h3>' +
-          '<p>' + a.description + '</p>' +
-          '<span class="pill">' + a.output_format + '</span>' +
-          '<div><button type="button" class="btn" onclick="openRunAgentFor(\'' + a.name + '\')">הרץ סוכן ⟵</button></div>' +
-        '</div>'
-      ).join('');
+      const EXT_LABEL = { '.docx': 'Word', '.xlsx': 'Excel', '.pdf': 'PDF' };
+      area.innerHTML = agentsList.map(a => {
+        const inputPills = (a.input_formats || [])
+          .map(ext => '<span class="pill">' + (EXT_LABEL[ext] || ext) + '</span>')
+          .join('');
+        return (
+          '<div class="agentCard">' +
+            '<h3>' + a.display_name + '</h3>' +
+            '<p>' + a.description + '</p>' +
+            '<div class="metaLine"><span class="metaLbl">קלט:</span>' + inputPills + '</div>' +
+            '<div class="metaLine"><span class="metaLbl">פלט:</span><span class="pill">' + a.output_format + '</span></div>' +
+            '<div><button type="button" class="btn" onclick="openRunAgentFor(\'' + a.name + '\')">הרץ סוכן ⟵</button></div>' +
+          '</div>'
+        );
+      }).join('');
     } catch (err) {
       area.innerHTML = '<div class="empty">שגיאה בטעינת הקטלוג: ' + err.message + '</div>';
     }
@@ -711,6 +738,44 @@
       }
     } catch (err) {
       document.getElementById('commonIssuesArea').innerHTML = '<div class="empty">שגיאה: ' + err.message + '</div>';
+    }
+  }
+
+  // ===== Agent Management =====
+  let modelsListLoaded = null;  // cached — the model list doesn't change at runtime
+
+  async function updateAgentModel(name, model){
+    const data = new FormData();
+    data.append('model', model);
+    try {
+      await fetch('/api/agent-settings/' + name, { method: 'POST', body: data });
+    } catch (err) {
+      alert('שגיאת רשת: ' + err.message);
+    }
+    loadAgentManagement();  // re-render from the server's actual state either way
+  }
+
+  async function loadAgentManagement(){
+    const area = document.getElementById('managementArea');
+    area.innerHTML = '<div class="empty">טוען…</div>';
+    try {
+      if (!modelsListLoaded) modelsListLoaded = await (await fetch('/api/models')).json();
+      const settings = await (await fetch('/api/agent-settings')).json();
+      if (!settings.length) { area.innerHTML = '<div class="empty">אין סוכנים רשומים.</div>'; return; }
+
+      let rows = '';
+      for (const a of settings){
+        const options = ['<option value=""' + (!a.model ? ' selected' : '') + '>ברירת מחדל</option>']
+          .concat(modelsListLoaded.map(m =>
+            '<option value="' + m + '"' + (a.model === m ? ' selected' : '') + '>' + m + '</option>'
+          ))
+          .join('');
+        rows += '<tr><td>' + a.display_name + '</td>' +
+          '<td><select onchange="updateAgentModel(\'' + a.name + '\', this.value)">' + options + '</select></td></tr>';
+      }
+      area.innerHTML = '<table><thead><tr><th>סוכן</th><th>מודל</th></tr></thead><tbody>' + rows + '</tbody></table>';
+    } catch (err) {
+      area.innerHTML = '<div class="empty">שגיאה: ' + err.message + '</div>';
     }
   }
 

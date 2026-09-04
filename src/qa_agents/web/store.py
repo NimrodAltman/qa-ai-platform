@@ -61,6 +61,14 @@ def _connect() -> sqlite3.Connection:
     # Migrate DBs created before priority/status existed.
     _ensure_column(conn, "feedback", "priority", "priority TEXT NOT NULL DEFAULT 'Medium'")
     _ensure_column(conn, "feedback", "status", "status TEXT NOT NULL DEFAULT 'Open'")
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS agent_settings (
+            agent_name   TEXT PRIMARY KEY,
+            model        TEXT
+        )
+        """
+    )
     return conn
 
 
@@ -174,6 +182,25 @@ def list_feedback() -> list[dict]:
         item["categories"] = json.loads(item["categories"])
         result.append(item)
     return result
+
+
+def get_agent_model(agent_name: str) -> str | None:
+    """Return the configured model override for an agent, or None (use default)."""
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT model FROM agent_settings WHERE agent_name = ?", (agent_name,)
+        ).fetchone()
+        return row["model"] if row else None
+
+
+def set_agent_model(agent_name: str, model: str | None) -> None:
+    """Set (or clear, with ``None``) an agent's model override."""
+    with _connect() as conn:
+        conn.execute(
+            "INSERT INTO agent_settings (agent_name, model) VALUES (?, ?)"
+            " ON CONFLICT(agent_name) DO UPDATE SET model = excluded.model",
+            (agent_name, model),
+        )
 
 
 def run_stats() -> dict:
