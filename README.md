@@ -1,8 +1,17 @@
 # QA AI Platform
 
-An extensible, config-driven platform for AI-powered QA agents. The first agent,
-**STD Generator**, reads a specification document and produces structured test
-scenarios (STD) and SQL population queries, exported as an Excel workbook.
+An extensible, config-driven platform for AI-powered QA agents. Two agents ship
+today:
+
+- **STD Generator** — reads a specification and produces structured test
+  scenarios and SQL population queries, exported as an Excel workbook.
+- **Spec Analyzer** — reviews a specification's *readiness* before testing
+  begins: business rules, entities/fields, gaps and ambiguities, and concrete
+  recommendations — exported as a Word report.
+
+Both agents share the same extraction layer, the same Claude-API plumbing
+(`llm.py`), and the same `BaseAgent` registry — adding a capability means
+adding an agent, not rewiring the platform.
 
 The design goal is a platform that adapts to **any organization and any QA
 department**: agents are database-agnostic (table = entity, column = field), and
@@ -61,6 +70,14 @@ from qa_agents.std_generator.pipeline import generate_std
 generate_std("spec.docx", tag="40012", output_path="std.xlsx")
 ```
 
+**Spec Analyzer** (second agent — Word output, no DB access needed):
+
+```bash
+python -m qa_agents.spec_analyzer examples/sample_spec.docx 40100
+# → writes output/ANALYSIS_40100.docx
+#   (omit the tag to analyze the whole spec instead of one task)
+```
+
 ## Web UI
 
 A local web interface (FastAPI) exposes the "Run Agent" screen — upload a spec,
@@ -74,6 +91,9 @@ python -m uvicorn qa_agents.web.app:app --port 8000
 Options mirror the product mockups: execution mode (specific tag / whole spec),
 output type (scenarios / SQL / both), and a task number for the file name. The
 API key is read from a local `.env`; generation runs server-side.
+
+The web UI currently drives **STD Generator** only; Spec Analyzer is CLI/library
+only for now — see Roadmap.
 
 ## Testing
 
@@ -94,8 +114,9 @@ tests and CI run without it configured.
 
 ```
 src/qa_agents/
-├── models.py            # shared data contract (Scenario, SqlQuery, StdResult)
+├── models.py            # STD Generator's data contract (Scenario, SqlQuery, StdResult)
 ├── base.py              # BaseAgent + registry — the extension seam
+├── llm.py               # shared Claude-API plumbing (model choice, streaming completer)
 ├── extraction.py        # .docx / .xlsx / .pdf → structured text
 ├── std_generator/
 │   ├── profile.py       # output profile (sheet + column layout as data)
@@ -104,6 +125,13 @@ src/qa_agents/
 │   ├── excel_writer.py  # StdResult + profile → .xlsx
 │   ├── pipeline.py      # extract → agent → excel
 │   └── __main__.py      # CLI
+├── spec_analyzer/
+│   ├── models.py        # AnalysisResult (business rules, entities, gaps, recommendations)
+│   ├── prompt.py        # readiness-analysis persona and rules
+│   ├── agent.py          # SpecAnalyzerAgent (LLM → AnalysisResult)
+│   ├── word_writer.py    # AnalysisResult → .docx (RTL)
+│   ├── pipeline.py       # extract → agent → word report
+│   └── __main__.py       # CLI
 └── web/                 # FastAPI app + Agent Hub UI
     ├── app.py           # routes: generate, runs, feedback, quality-stats
     ├── store.py         # SQLite-backed run/feedback persistence
@@ -116,8 +144,10 @@ examples/                # fully fictional demo specifications
 
 - ✅ Hub screens: Dashboard, Run Agent, Output Center, Feedback Center (with
   triage), Health Dashboard.
-- A second agent on the same base — process/specification analysis (Word output).
-- Agent Catalog / Agent Management screens, once a second real agent exists to
-  design them against.
+- ✅ A second agent on the same base — **Spec Analyzer** (process/specification
+  readiness analysis, Word output).
+- Wire Spec Analyzer into the web UI (currently CLI/library only).
+- Agent Catalog / Agent Management screens, now that a second real agent exists
+  to design them against.
 - Multi-profile support so a new organization is a config file, not code.
 - Authentication / roles (deliberately deferred — single local user today).

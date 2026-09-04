@@ -9,24 +9,12 @@ Claude API and constrains the output to a JSON schema.
 from __future__ import annotations
 
 import json
-import os
-from typing import Callable
 
 from ..base import BaseAgent
+from ..llm import Completer, TRUNCATED_OUTPUT_MESSAGE, anthropic_completer, default_model
 from ..models import Scenario, SqlQuery, StdResult
 from .profile import CRM_HEBREW, Profile
 from .prompt import build_system_prompt, build_user_prompt
-
-# A completer takes (system_prompt, user_prompt) and returns the model's raw
-# JSON text. This is the seam that isolates the agent from the LLM SDK.
-Completer = Callable[[str, str], str]
-
-DEFAULT_MODEL = "claude-opus-5"
-
-
-def _default_model() -> str:
-    """The model to use — from the QA_MODEL env var, else Claude Opus 5."""
-    return os.environ.get("QA_MODEL", DEFAULT_MODEL)
 
 _SCENARIO_PROPS = {
     "entity": {"type": "string"},
@@ -79,8 +67,8 @@ class StdGeneratorAgent(BaseAgent):
         model: str | None = None,
         profile: Profile = CRM_HEBREW,
     ) -> None:
-        model = model or _default_model()
-        self._completer = completer or _anthropic_completer(model)
+        model = model or default_model()
+        self._completer = completer or anthropic_completer(model, STD_SCHEMA)
         self.model = model
         self.profile = profile
 
@@ -102,45 +90,12 @@ class StdGeneratorAgent(BaseAgent):
         return parse_std(raw)
 
 
-_TRUNCATED_OUTPUT_MESSAGE = (
-    "הפלט מהסוכן נחתך כי היה ארוך מדי. נסה לצמצם את ההיקף — למשל הרץ תסריטים "
-    "ו-SQL בנפרד במקום שניהם יחד, או הרץ לתיוג ספציפי במקום כלל האפיון."
-)
-
-
 def parse_std(raw: str) -> StdResult:
     """Parse the model's JSON output into an ``StdResult``."""
     try:
         data = json.loads(raw)
     except json.JSONDecodeError as exc:
-        raise ValueError(_TRUNCATED_OUTPUT_MESSAGE) from exc
+        raise ValueError(TRUNCATED_OUTPUT_MESSAGE) from exc
     scenarios = [Scenario(**s) for s in data.get("scenarios", [])]
     sql_queries = [SqlQuery(**q) for q in data.get("sql_queries", [])]
     return StdResult(scenarios=scenarios, sql_queries=sql_queries)
-
-
-def _anthropic_completer(model: str) -> Completer:
-    """Build a completer backed by the Claude API (imported lazily)."""
-    client = None
-
-    def complete(system: str, user: str) -> str:
-        nonlocal client
-        if client is None:
-            import anthropic
-
-            client = anthropic.Anthropic()
-        # Streamed: non-streaming requests above ~16K output tokens risk an
-        # SDK timeout guard, and exhaustive "both" runs can exceed that.
-        with client.messages.stream(
-            model=model,
-            max_tokens=32000,
-            system=system,
-            messages=[{"role": "user", "content": user}],
-            output_config={"format": {"type": "json_schema", "schema": STD_SCHEMA}},
-        ) as stream:
-            response = stream.get_final_message()
-        if response.stop_reason == "max_tokens":
-            raise RuntimeError(_TRUNCATED_OUTPUT_MESSAGE)
-        return next(block.text for block in response.content if block.type == "text")
-
-    return complete
