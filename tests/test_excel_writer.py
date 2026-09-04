@@ -5,6 +5,7 @@ from openpyxl import load_workbook
 
 from qa_agents.models import Scenario, SqlQuery, StdResult
 from qa_agents.std_generator.excel_writer import write_workbook
+from qa_agents.std_generator.profile import ECOMMERCE_ENGLISH
 
 
 def _sample_result() -> StdResult:
@@ -94,6 +95,20 @@ def test_requires_at_least_one_sheet(tmp_path):
 def test_creates_missing_output_directory(tmp_path):
     out = write_workbook(_sample_result(), tmp_path / "output" / "STD_40012.xlsx")
     assert out.exists()
+
+
+def test_second_profile_produces_english_ltr_workbook(tmp_path):
+    # same engine, same StdResult — only the profile changes
+    out = write_workbook(_sample_result(), tmp_path / "std.xlsx", profile=ECOMMERCE_ENGLISH)
+    wb = load_workbook(out)
+
+    assert wb.sheetnames == ["Scenarios", "SQL"]
+    assert wb["Scenarios"].sheet_view.rightToLeft is False
+    headers = [c.value for c in wb["Scenarios"][1]]
+    assert headers[:7] == [
+        "#", "Entity", "Event", "Field", "Schema", "Condition/Action", "Expected Result",
+    ]
+    assert wb["Scenarios"].cell(row=2, column=2).value == "פרטי (contact)"  # data unchanged
 
 
 def test_sql_sheet_values(tmp_path):

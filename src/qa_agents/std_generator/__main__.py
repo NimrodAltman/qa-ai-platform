@@ -12,6 +12,7 @@ import argparse
 from dotenv import load_dotenv
 
 from .pipeline import default_output_name, generate_std
+from .profile import CRM_HEBREW, PROFILES
 
 
 def main() -> None:
@@ -39,14 +40,21 @@ def main() -> None:
         action="store_true",
         help="Generate for the whole spec instead of a specific tag",
     )
+    parser.add_argument(
+        "--profile",
+        choices=list(PROFILES),
+        default=CRM_HEBREW.name,
+        help="Organization profile (default: %(default)s)",
+    )
     args = parser.parse_args()
 
     scenarios = args.outputs in ("both", "scenarios")
     sql = args.outputs in ("both", "sql")
     tag = None if args.whole_spec else args.tag
     output = args.output or default_output_name(args.tag, scenarios, sql)
+    profile = PROFILES[args.profile]
 
-    out = generate_std(args.spec, tag, output, scenarios=scenarios, sql=sql)
+    out = generate_std(args.spec, tag, output, scenarios=scenarios, sql=sql, profile=profile)
     print(f"Wrote {out}")
 
 

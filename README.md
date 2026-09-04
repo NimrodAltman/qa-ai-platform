@@ -60,6 +60,7 @@ export ANTHROPIC_API_KEY=sk-ant-...
 python -m qa_agents.std_generator examples/demo_spec.docx 40012
 # → writes output/STD_40012_scenarios_sql.xlsx
 #   (--outputs scenarios|sql changes the suffix; pass a 4th arg for a custom path)
+#   (--profile crm-hebrew|ecommerce-english picks the organization — default: crm-hebrew)
 ```
 
 Use it as a library:
@@ -93,10 +94,32 @@ description, output format) and jumps straight to Run Agent with that agent
 pre-selected — add a new agent and it appears here automatically, no UI change
 needed.
 
+**Organization profile** — STD Generator's Run Agent form has an "organization
+profile" dropdown (`crm-hebrew` / `ecommerce-english`), populated from the same
+`Profile` registry the CLI's `--profile` flag reads. Same agent, same engine,
+same prompt-building code — only the profile's data (persona, language, sheet
+layout) changes what comes out. See [Multi-organization support](#multi-organization-support).
+
 **Run Agent** drives both agents: pick STD Generator (execution mode, output
 type — scenarios / SQL / both) or Spec Analyzer (optional tag, defaults to the
 whole spec), upload a document, and download the result. The API key is read
 from a local `.env`; generation runs server-side.
+
+## Multi-organization support
+
+STD Generator's `Profile` (`std_generator/profile.py`) is the seam that lets
+the same agent and engine serve any organization: it carries the LLM persona
+and language, how a run is framed (execution-mode / output-type phrasing),
+and the Excel layout (sheet names, column headers, RTL) — all as plain data,
+not code. Two profiles ship today:
+
+- `crm-hebrew` — the original CRM/Hebrew setup (RTL, `תסריטים`/`SQL` sheets).
+- `ecommerce-english` — a fictional e-commerce/web-app organization (LTR,
+  English persona, `Scenarios`/`SQL` sheets) — added with **zero changes** to
+  `agent.py`, `excel_writer.py`, or `pipeline.py`.
+
+Adding a third organization is a new `Profile` value in `profile.py`; nothing
+else in the codebase needs to change.
 
 ## Testing
 
@@ -122,8 +145,8 @@ src/qa_agents/
 ├── llm.py               # shared Claude-API plumbing (model choice, streaming completer)
 ├── extraction.py        # .docx / .xlsx / .pdf → structured text
 ├── std_generator/
-│   ├── profile.py       # output profile (sheet + column layout as data)
-│   ├── prompt.py        # QA persona and domain rules
+│   ├── profile.py       # org profile: persona/language/framing + Excel layout, as data
+│   ├── prompt.py        # assembles a profile's text into system/user prompts
 │   ├── agent.py         # StdGeneratorAgent (LLM → StdResult)
 │   ├── excel_writer.py  # StdResult + profile → .xlsx
 │   ├── pipeline.py      # extract → agent → excel
@@ -152,6 +175,9 @@ examples/                # fully fictional demo specifications
 - ✅ Wired Spec Analyzer into the web UI alongside STD Generator.
 - ✅ Agent Catalog — a registry-driven screen listing every registered agent,
   with a one-click jump to Run Agent pre-selected.
+- ✅ Run Agent's agent/profile pickers are dropdowns loaded from their registries
+  (`/api/agents`, `/api/profiles`), so both scale past a couple of options.
+- ✅ Multi-profile support — a second organization (`ecommerce-english`) proves a
+  new org is a config file, not code. See [Multi-organization support](#multi-organization-support).
 - Agent Management screen (enable/disable agents, per-agent settings).
-- Multi-profile support so a new organization is a config file, not code.
 - Authentication / roles (deliberately deferred — single local user today).

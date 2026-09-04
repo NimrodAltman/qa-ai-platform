@@ -7,6 +7,7 @@ from pathlib import Path
 from ..extraction import extract
 from .agent import StdGeneratorAgent
 from .excel_writer import write_workbook
+from .profile import CRM_HEBREW, Profile
 
 
 def output_suffix(scenarios: bool, sql: bool) -> str:
@@ -28,15 +29,17 @@ def generate_std(
     agent: StdGeneratorAgent | None = None,
     scenarios: bool = True,
     sql: bool = True,
+    profile: Profile = CRM_HEBREW,
 ) -> Path:
     """Extract a spec, generate the STD, and write the Excel workbook.
 
     ``tag`` selects a specific task tag (``None`` = whole spec);
     ``scenarios`` / ``sql`` select which outputs to produce.
-    ``agent`` defaults to a live :class:`StdGeneratorAgent` (Claude API); pass a
-    mock-backed agent in tests to avoid an API call.
+    ``agent`` defaults to a live :class:`StdGeneratorAgent` (Claude API) built
+    with ``profile``; pass a mock-backed agent in tests to avoid an API call
+    (in which case ``profile`` is ignored — the agent already carries one).
     """
-    agent = agent or StdGeneratorAgent()
+    agent = agent or StdGeneratorAgent(profile=profile)
     spec_text = extract(spec_path)
     result = agent.run(spec_text, tag=tag, scenarios=scenarios, sql=sql)
 

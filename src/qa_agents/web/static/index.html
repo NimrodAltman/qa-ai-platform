@@ -183,6 +183,10 @@
         <!-- STD Generator fields -->
         <div id="stdFields">
           <div class="field">
+            <label class="lbl">פרופיל ארגון</label>
+            <select id="stdProfile"></select>
+          </div>
+          <div class="field">
             <label class="lbl">מצב הרצה</label>
             <div class="seg">
               <label><input type="radio" name="mode" value="tag" checked>תיוג ספציפי</label>
@@ -457,6 +461,21 @@
     }
   }
 
+  // same idea for STD Generator's organization profile — a new profile is a
+  // new config entry, not a UI change
+  const stdProfileSelect = document.getElementById('stdProfile');
+  async function loadProfileSelector(){
+    try {
+      const res = await fetch('/api/profiles');
+      const profilesList = await res.json();
+      stdProfileSelect.innerHTML = profilesList
+        .map(p => '<option value="' + p.name + '">' + p.display_name + '</option>')
+        .join('');
+    } catch (err) {
+      stdProfileSelect.innerHTML = '<option value="">שגיאה בטעינת פרופילים</option>';
+    }
+  }
+
   document.querySelectorAll('input[name="mode"]').forEach(r =>
     r.addEventListener('change', () => tagField.classList.toggle('hidden', mode() !== 'tag'))
   );
@@ -489,8 +508,9 @@
   async function runStdGenerator(file){
     const tag = document.getElementById('tag').value.trim();
     const task = document.getElementById('task').value.trim();
-    const selectedMode = mode();    // snapshot the selections at submit time so a
-    const selectedOut = outType();  // change during generation can't desync the file name
+    const selectedMode = mode();       // snapshot the selections at submit time so a
+    const selectedOut = outType();     // change during generation can't desync the file name
+    const selectedProfile = stdProfileSelect.value;
 
     if (selectedMode === 'tag' && !tag) throw new Error('במצב "תיוג ספציפי" חובה להזין מספר תיוג');
     const nameKey = task || tag;
@@ -502,6 +522,7 @@
     data.append('tag', tag);
     data.append('task_number', task);
     data.append('output_type', selectedOut);
+    data.append('profile', selectedProfile);
 
     const res = await fetch('/api/generate', { method: 'POST', body: data });
     if (!res.ok) throw new Error(await errorDetail(res));
@@ -693,8 +714,9 @@
     }
   }
 
-  loadDashboard();     // initial load — Dashboard is the default screen
-  loadAgentSelector(); // populate the Run Agent dropdown up front
+  loadDashboard();       // initial load — Dashboard is the default screen
+  loadAgentSelector();   // populate the Run Agent dropdown up front
+  loadProfileSelector(); // populate the STD Generator profile dropdown up front
 </script>
 </body>
 </html>

@@ -25,6 +25,7 @@ from ..base import list_agents
 from ..extraction import SUPPORTED
 from ..spec_analyzer.pipeline import generate_analysis
 from ..std_generator.pipeline import generate_std, output_suffix
+from ..std_generator.profile import CRM_HEBREW, PROFILES
 
 load_dotenv()  # pick up ANTHROPIC_API_KEY from a local .env for convenience
 
@@ -83,6 +84,7 @@ async def generate(
     tag: str = Form(""),
     task_number: str = Form(""),
     output_type: str = Form("both"),  # "both" | "scenarios" | "sql"
+    profile: str = Form(CRM_HEBREW.name),
 ) -> FileResponse:
     suffix = Path(file.filename or "").suffix.lower()
     if suffix not in SUPPORTED:
@@ -92,6 +94,8 @@ async def generate(
         )
     if output_type not in ("both", "scenarios", "sql"):
         raise HTTPException(status_code=400, detail=f"output_type לא תקין: {output_type!r}")
+    if profile not in PROFILES:
+        raise HTTPException(status_code=400, detail=f"פרופיל לא תקין: {profile!r}")
     if mode == "tag" and not tag.strip():
         raise HTTPException(status_code=400, detail="במצב 'תיוג ספציפי' חובה להזין מספר תיוג")
 
@@ -112,7 +116,10 @@ async def generate(
         spec_path = tmp.name
 
     try:
-        out = generate_std(spec_path, agent_tag, unique_path, scenarios=scenarios, sql=sql)
+        out = generate_std(
+            spec_path, agent_tag, unique_path,
+            scenarios=scenarios, sql=sql, profile=PROFILES[profile],
+        )
     except Exception as exc:  # surface generation failures to the UI
         raise HTTPException(status_code=500, detail=f"ההפקה נכשלה: {exc}")
 
@@ -157,6 +164,11 @@ async def analyze(
 @app.get("/api/agents")
 def agents() -> list[dict]:
     return list_agents()
+
+
+@app.get("/api/profiles")
+def profiles() -> list[dict]:
+    return [{"name": p.name, "display_name": p.display_name} for p in PROFILES.values()]
 
 
 @app.get("/api/runs")

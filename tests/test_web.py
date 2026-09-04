@@ -45,7 +45,7 @@ def test_generate_returns_xlsx(tmp_path, monkeypatch):
 def test_generate_maps_mode_and_output_type(tmp_path, monkeypatch):
     captured = {}
 
-    def fake_generate(spec_path, tag, output_path, scenarios=True, sql=True):
+    def fake_generate(spec_path, tag, output_path, scenarios=True, sql=True, profile=None):
         captured.update(tag=tag, output_path=str(output_path), scenarios=scenarios, sql=sql)
         return write_workbook(StdResult(), tmp_path / "o.xlsx")
 
@@ -75,6 +75,39 @@ def test_generate_rejects_unsupported_extension():
     files = {"file": ("spec.txt", b"dummy", "text/plain")}
     res = client.post("/api/generate", data={"tag": "999"}, files=files)
     assert res.status_code == 400
+
+
+def test_profiles_endpoint_lists_both_profiles():
+    res = client.get("/api/profiles")
+    assert res.status_code == 200
+    names = {p["name"] for p in res.json()}
+    assert names == {"crm-hebrew", "ecommerce-english"}
+
+
+def test_generate_rejects_unknown_profile():
+    files = {"file": ("spec.docx", b"dummy", "application/octet-stream")}
+    res = client.post(
+        "/api/generate", data={"tag": "40100", "profile": "not-a-real-profile"}, files=files
+    )
+    assert res.status_code == 400
+
+
+def test_generate_passes_selected_profile_through(tmp_path, monkeypatch):
+    captured = {}
+
+    def fake_generate(spec_path, tag, output_path, scenarios=True, sql=True, profile=None):
+        captured["profile"] = profile.name
+        return write_workbook(StdResult(), tmp_path / "o.xlsx")
+
+    monkeypatch.setattr(webapp, "generate_std", fake_generate)
+    files = {"file": ("spec.docx", b"dummy", "application/octet-stream")}
+    res = client.post(
+        "/api/generate",
+        data={"tag": "40100", "profile": "ecommerce-english"},
+        files=files,
+    )
+    assert res.status_code == 200
+    assert captured["profile"] == "ecommerce-english"
 
 
 def test_agents_endpoint_lists_registered_agents():

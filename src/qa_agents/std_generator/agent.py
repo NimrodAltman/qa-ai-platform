@@ -88,7 +88,9 @@ class StdGeneratorAgent(BaseAgent):
         ``scenarios`` / ``sql`` select which outputs to produce.
         """
         system = build_system_prompt(self.profile)
-        user = build_user_prompt(spec_text, tag=tag, scenarios=scenarios, sql=sql)
+        user = build_user_prompt(
+            spec_text, tag=tag, scenarios=scenarios, sql=sql, profile=self.profile
+        )
         raw = self._completer(system, user)
         return parse_std(raw)
 

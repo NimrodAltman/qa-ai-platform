@@ -7,6 +7,7 @@ import pytest
 from qa_agents.base import get_agent
 from qa_agents.models import StdResult
 from qa_agents.std_generator.agent import StdGeneratorAgent, parse_std
+from qa_agents.std_generator.profile import ECOMMERCE_ENGLISH
 
 _MODEL_JSON = json.dumps(
     {
@@ -76,6 +77,21 @@ def test_parse_std_raises_clear_error_on_truncated_json():
     truncated = '{"scenarios": [{"entity": "unterminated'
     with pytest.raises(ValueError, match="נחתך"):
         parse_std(truncated)
+
+
+def test_run_uses_the_given_profile_for_prompts():
+    captured = {}
+
+    def fake_completer(system: str, user: str) -> str:
+        captured["system"] = system
+        captured["user"] = user
+        return _MODEL_JSON
+
+    agent = StdGeneratorAgent(completer=fake_completer, profile=ECOMMERCE_ENGLISH)
+    agent.run("some spec text", tag="99")
+
+    assert "senior QA engineer" in captured["system"]
+    assert "Task tag: 99" in captured["user"]
 
 
 def test_agent_is_registered():
