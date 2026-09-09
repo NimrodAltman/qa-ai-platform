@@ -82,19 +82,23 @@ class StdGeneratorAgent(BaseAgent):
         scenarios: bool = True,
         sql: bool = True,
         guidance: str = "",
+        images: list[dict] | None = None,
     ) -> StdResult:
         """Generate an STD from ``spec_text``.
 
         ``tag`` selects a specific task tag (``None`` = whole spec);
         ``scenarios`` / ``sql`` select which outputs to produce; ``guidance``
         is optional free text from the user, e.g. a more precise instruction
-        than the tag number alone.
+        than the tag number alone. ``images`` are Claude content blocks (see
+        ``llm.image_content_block``) — e.g. a marked-up screenshot pointing at
+        the relevant part of the spec.
         """
         system = build_system_prompt(self.profile)
-        user = build_user_prompt(
+        text = build_user_prompt(
             spec_text, tag=tag, scenarios=scenarios, sql=sql,
-            profile=self.profile, guidance=guidance,
+            profile=self.profile, guidance=guidance, images_attached=bool(images),
         )
+        user = [*images, {"type": "text", "text": text}] if images else text
         raw = self._completer(system, user)
         return parse_std(raw)
 

@@ -33,6 +33,24 @@ def test_writes_scope_for_whole_spec(tmp_path):
     assert any("כלל האפיון" in text for _, text in texts)
 
 
+def test_writes_scope_for_image_without_tag(tmp_path):
+    out = write_report(
+        _sample_result(), tmp_path / "analysis.docx", tag=None, images_attached=True
+    )
+    texts = [t for _, t in _paragraph_texts(out)]
+    assert any("תמונה מצורפת" in t for t in texts)
+    assert not any(t == "מיקוד: כלל האפיון" for t in texts)
+
+
+def test_tag_takes_priority_over_image_scope_in_header(tmp_path):
+    out = write_report(
+        _sample_result(), tmp_path / "analysis.docx", tag="40100", images_attached=True
+    )
+    texts = [t for _, t in _paragraph_texts(out)]
+    assert any("40100" in t for t in texts)
+    assert not any("תמונה מצורפת" in t for t in texts)
+
+
 def test_writes_all_sections_and_bullets(tmp_path):
     out = write_report(_sample_result(), tmp_path / "analysis.docx")
     texts = _paragraph_texts(out)

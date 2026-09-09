@@ -19,14 +19,18 @@ def generate_analysis(
     tag: str | None,
     output_path: str | Path,
     agent: SpecAnalyzerAgent | None = None,
+    guidance: str = "",
+    images: list[dict] | None = None,
 ) -> Path:
     """Extract a spec, analyze it, and write the Word report.
 
-    ``tag`` focuses the analysis on one task tag (``None`` = whole spec).
+    ``tag`` focuses the analysis on one task tag (``None`` = whole spec);
+    ``guidance`` is optional free text from the user; ``images`` are Claude
+    content blocks (see ``llm.image_content_block``).
     ``agent`` defaults to a live :class:`SpecAnalyzerAgent` (Claude API); pass a
     mock-backed agent in tests to avoid an API call.
     """
     agent = agent or SpecAnalyzerAgent()
     spec_text = extract(spec_path)
-    result = agent.run(spec_text, tag=tag)
-    return write_report(result, output_path, tag=tag)
+    result = agent.run(spec_text, tag=tag, guidance=guidance, images=images)
+    return write_report(result, output_path, tag=tag, images_attached=bool(images))

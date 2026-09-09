@@ -47,3 +47,21 @@ def test_guidance_included_when_given():
 def test_guidance_omitted_when_blank():
     prompt = build_user_prompt("spec text", tag="1", guidance="   ")
     assert CRM_HEBREW.guidance_label not in prompt
+
+
+def test_image_scope_used_when_no_tag_and_image_attached():
+    prompt = build_user_prompt("spec text", tag=None, images_attached=True)
+    assert CRM_HEBREW.image_scope in prompt
+    assert CRM_HEBREW.whole_scope not in prompt
+
+
+def test_tag_takes_priority_over_image_scope():
+    prompt = build_user_prompt("spec text", tag="40100", images_attached=True)
+    assert "40100" in prompt
+    assert CRM_HEBREW.image_scope not in prompt
+
+
+def test_whole_scope_used_when_no_tag_and_no_image():
+    prompt = build_user_prompt("spec text", tag=None, images_attached=False)
+    assert CRM_HEBREW.whole_scope in prompt
+    assert CRM_HEBREW.image_scope not in prompt

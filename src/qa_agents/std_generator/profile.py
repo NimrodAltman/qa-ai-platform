@@ -38,6 +38,7 @@ class Profile:
     # user-prompt framing, kept as data so it can be written in any language
     tag_scope: str  # template with a {tag} placeholder
     whole_scope: str
+    image_scope: str  # used instead of whole_scope when an image is attached but no tag given
     outputs_both: str
     outputs_scenarios: str
     outputs_sql: str
@@ -109,6 +110,11 @@ CRM_HEBREW = Profile(
     ),
     tag_scope='תיוג משימה: {tag}\nהפק עבור התיוג הנ"ל בלבד.',
     whole_scope="מצב הרצה: כלל האפיון. הפק עבור כל התיוגים/התהליכים שמופיעים באפיון.",
+    image_scope=(
+        "מצורפת תמונה (צילום מסך מסומן) המצביעה על קטע ספציפי באפיון. זהה מתוך "
+        "התמונה איזה תיוג/תהליך מבוקש בטקסט האפיון המלא המצורף, והפק תסריטים ושאילתות "
+        "אך ורק עבור הקטע הזה — התעלם משאר האפיון."
+    ),
     outputs_both="הפק תסריטי בדיקה ושאילתות SQL.",
     outputs_scenarios="הפק תסריטי בדיקה בלבד. החזר את מערך sql_queries ריק.",
     outputs_sql="הפק שאילתות SQL בלבד. החזר את מערך scenarios ריק.",
@@ -192,6 +198,12 @@ ECOMMERCE_ENGLISH = Profile(
     whole_scope=(
         "Execution mode: whole spec. Generate for every tag/process appearing "
         "in the spec."
+    ),
+    image_scope=(
+        "An image (a marked-up screenshot) is attached, pointing at a specific "
+        "part of the spec. Identify which tag/process it refers to in the full "
+        "spec text below, and generate scenarios and queries only for that part "
+        "— ignore the rest of the spec."
     ),
     outputs_both="Generate test scenarios and SQL queries.",
     outputs_scenarios="Generate test scenarios only. Return an empty sql_queries array.",

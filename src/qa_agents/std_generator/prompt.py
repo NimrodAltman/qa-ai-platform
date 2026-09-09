@@ -22,14 +22,23 @@ def build_user_prompt(
     sql: bool = True,
     profile: Profile = CRM_HEBREW,
     guidance: str = "",
+    images_attached: bool = False,
 ) -> str:
     """Return the user prompt for the specification.
 
-    ``tag`` selects a specific task tag; ``None`` means cover the whole spec.
-    ``scenarios`` / ``sql`` select which outputs to produce. ``guidance`` is
-    optional free text from the user (e.g. "focus on the approval flow only").
+    ``tag`` selects a specific task tag; ``None`` means cover the whole spec —
+    unless ``images_attached`` is true, in which case the model is told to use
+    the attached image to find the relevant scope instead of covering
+    everything. ``scenarios`` / ``sql`` select which outputs to produce.
+    ``guidance`` is optional free text from the user (e.g. "focus on the
+    approval flow only").
     """
-    scope = profile.tag_scope.format(tag=tag) if tag else profile.whole_scope
+    if tag:
+        scope = profile.tag_scope.format(tag=tag)
+    elif images_attached:
+        scope = profile.image_scope
+    else:
+        scope = profile.whole_scope
 
     if scenarios and sql:
         outputs = profile.outputs_both

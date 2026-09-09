@@ -107,6 +107,40 @@ def test_run_passes_guidance_through_to_the_prompt():
     assert "focus on rejection scenarios only" in captured["user"]
 
 
+def test_run_with_images_sends_content_blocks_including_the_prompt_text():
+    captured = {}
+
+    def fake_completer(system: str, user) -> str:
+        captured["user"] = user
+        return _MODEL_JSON
+
+    image_block = {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": "abc"}}
+    agent = StdGeneratorAgent(completer=fake_completer)
+    agent.run("some spec text", tag="1", images=[image_block])
+
+    assert isinstance(captured["user"], list)
+    assert image_block in captured["user"]
+    text_blocks = [b for b in captured["user"] if b.get("type") == "text"]
+    assert len(text_blocks) == 1
+    assert "some spec text" in text_blocks[0]["text"]
+
+
+def test_run_with_image_and_no_tag_tells_model_to_use_the_image_for_scope():
+    captured = {}
+
+    def fake_completer(system: str, user) -> str:
+        captured["user"] = user
+        return _MODEL_JSON
+
+    image_block = {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": "abc"}}
+    agent = StdGeneratorAgent(completer=fake_completer)
+    agent.run("some spec text", tag=None, images=[image_block])
+
+    text = next(b["text"] for b in captured["user"] if b.get("type") == "text")
+    assert "כלל האפיון" not in text  # would wrongly override the image-based scope
+    assert "מצורפת תמונה" in text
+
+
 def test_agent_is_registered():
     assert get_agent("std_generator") is StdGeneratorAgent
 

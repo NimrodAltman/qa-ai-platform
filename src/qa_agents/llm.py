@@ -8,17 +8,30 @@ streaming/truncation handling) applies to every agent, not just one.
 
 from __future__ import annotations
 
+import base64
 import os
-from typing import Callable
+from typing import Any, Callable
 
 DEFAULT_MODEL = "claude-opus-5"
 
 # Models selectable per-agent from the Agent Management screen.
 AVAILABLE_MODELS = ["claude-opus-5", "claude-sonnet-5", "claude-haiku-4-5"]
 
-# A completer takes (system_prompt, user_prompt) and returns the model's raw
-# JSON text. This is the seam that isolates an agent from the LLM SDK.
-Completer = Callable[[str, str], str]
+# A completer takes (system_prompt, user_content) and returns the model's raw
+# JSON text. ``user_content`` is plain text, or a list of Claude content
+# blocks (see ``image_content_block``) when the caller attaches an image.
+# This is the seam that isolates an agent from the LLM SDK.
+Completer = Callable[[str, "str | list[dict[str, Any]]"], str]
+
+IMAGE_MEDIA_TYPES = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg"}
+
+
+def image_content_block(data: bytes, media_type: str) -> dict[str, Any]:
+    """Build a Claude API image content block from raw image bytes."""
+    return {
+        "type": "image",
+        "source": {"type": "base64", "media_type": media_type, "data": base64.b64encode(data).decode()},
+    }
 
 TRUNCATED_OUTPUT_MESSAGE = (
     "הפלט מהסוכן נחתך כי היה ארוך מדי. נסה לצמצם את ההיקף — למשל התמקד "
@@ -40,7 +53,7 @@ def anthropic_completer(model: str, schema: dict, max_tokens: int = 32000) -> Co
     """
     client = None
 
-    def complete(system: str, user: str) -> str:
+    def complete(system: str, user: "str | list[dict[str, Any]]") -> str:
         nonlocal client
         if client is None:
             import anthropic

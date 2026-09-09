@@ -57,6 +57,53 @@ def test_run_whole_spec_mode_has_no_tag_in_prompt():
     agent.run("תוכן אפיון", tag=None)
 
 
+def test_run_passes_guidance_through_to_the_prompt():
+    captured = {}
+
+    def fake_completer(system: str, user: str) -> str:
+        captured["user"] = user
+        return _MODEL_JSON
+
+    agent = SpecAnalyzerAgent(completer=fake_completer)
+    agent.run("תוכן אפיון", tag="1", guidance="focus on the external interface only")
+
+    assert "focus on the external interface only" in captured["user"]
+
+
+def test_run_with_images_sends_content_blocks_including_the_prompt_text():
+    captured = {}
+
+    def fake_completer(system: str, user) -> str:
+        captured["user"] = user
+        return _MODEL_JSON
+
+    image_block = {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": "abc"}}
+    agent = SpecAnalyzerAgent(completer=fake_completer)
+    agent.run("תוכן אפיון", tag="1", images=[image_block])
+
+    assert isinstance(captured["user"], list)
+    assert image_block in captured["user"]
+    text_blocks = [b for b in captured["user"] if b.get("type") == "text"]
+    assert len(text_blocks) == 1
+    assert "תוכן אפיון" in text_blocks[0]["text"]
+
+
+def test_run_with_image_and_no_tag_tells_model_to_use_the_image_for_scope():
+    captured = {}
+
+    def fake_completer(system: str, user) -> str:
+        captured["user"] = user
+        return _MODEL_JSON
+
+    image_block = {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": "abc"}}
+    agent = SpecAnalyzerAgent(completer=fake_completer)
+    agent.run("תוכן אפיון", tag=None, images=[image_block])
+
+    text = next(b["text"] for b in captured["user"] if b.get("type") == "text")
+    assert "ניתוח כלל האפיון" not in text
+    assert "מצורפת תמונה" in text
+
+
 def test_parse_analysis_defaults_empty_lists_when_missing():
     result = parse_analysis(json.dumps({"business_rules": [], "entities": [], "gaps": [], "recommendations": []}))
     assert result == AnalysisResult()

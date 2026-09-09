@@ -29,14 +29,33 @@ def build_system_prompt() -> str:
     return _SYSTEM
 
 
-def build_user_prompt(spec_text: str, tag: str | None = None) -> str:
+def build_user_prompt(
+    spec_text: str,
+    tag: str | None = None,
+    guidance: str = "",
+    images_attached: bool = False,
+) -> str:
     """Return the user prompt for the specification.
 
-    ``tag`` focuses the analysis on one task tag; ``None`` means the whole spec.
+    ``tag`` focuses the analysis on one task tag; ``None`` means the whole
+    spec — unless ``images_attached`` is true, in which case the model is
+    told to use the attached image to find the relevant scope instead of
+    analyzing everything. ``guidance`` is optional free text from the user,
+    e.g. a more precise focus than the tag alone.
     """
-    scope = (
-        f'מיקוד: תיוג {tag}. נתח את האפיון בהתמקדות בתיוג הנ"ל בלבד.'
-        if tag
-        else "מיקוד: ניתוח כלל האפיון."
+    if tag:
+        scope = f'מיקוד: תיוג {tag}. נתח את האפיון בהתמקדות בתיוג הנ"ל בלבד.'
+    elif images_attached:
+        scope = (
+            "מיקוד: מצורפת תמונה (צילום מסך מסומן) המצביעה על קטע ספציפי באפיון. "
+            "זהה מתוך התמונה איזה תיוג/תהליך מבוקש בטקסט האפיון המלא המצורף, ונתח "
+            "אך ורק את הקטע הזה — התעלם משאר האפיון."
+        )
+    else:
+        scope = "מיקוד: ניתוח כלל האפיון."
+    guidance_block = (
+        f'\n\nהנחיה נוספת מהמשתמש (יש לתת לה עדיפות, אך לא לחרוג מהאפיון):\n{guidance.strip()}'
+        if guidance.strip()
+        else ""
     )
-    return f"{scope}\n\n--- אפיון ---\n{spec_text}"
+    return f"{scope}{guidance_block}\n\n--- אפיון ---\n{spec_text}"

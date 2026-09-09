@@ -56,7 +56,7 @@ def test_generate_returns_xlsx(tmp_path, monkeypatch):
 def test_generate_maps_mode_and_output_type(tmp_path, monkeypatch):
     captured = {}
 
-    def fake_generate(spec_path, tag, output_path, agent=None, scenarios=True, sql=True, profile=None, guidance=""):
+    def fake_generate(spec_path, tag, output_path, agent=None, scenarios=True, sql=True, profile=None, guidance="", images=None):
         captured.update(tag=tag, output_path=str(output_path), scenarios=scenarios, sql=sql)
         return write_workbook(StdResult(), tmp_path / "o.xlsx")
 
@@ -121,7 +121,7 @@ def test_agent_settings_rejects_unknown_model():
 def test_generate_uses_configured_model(tmp_path, monkeypatch):
     captured = {}
 
-    def fake_generate(spec_path, tag, output_path, agent=None, scenarios=True, sql=True, profile=None, guidance=""):
+    def fake_generate(spec_path, tag, output_path, agent=None, scenarios=True, sql=True, profile=None, guidance="", images=None):
         captured["model"] = agent.model
         return write_workbook(StdResult(), tmp_path / "o.xlsx")
 
@@ -153,7 +153,7 @@ def test_generate_rejects_unknown_profile():
 def test_generate_passes_selected_profile_through(tmp_path, monkeypatch):
     captured = {}
 
-    def fake_generate(spec_path, tag, output_path, agent=None, scenarios=True, sql=True, profile=None, guidance=""):
+    def fake_generate(spec_path, tag, output_path, agent=None, scenarios=True, sql=True, profile=None, guidance="", images=None):
         captured["profile"] = profile.name
         return write_workbook(StdResult(), tmp_path / "o.xlsx")
 
@@ -171,7 +171,7 @@ def test_generate_passes_selected_profile_through(tmp_path, monkeypatch):
 def test_generate_passes_guidance_through(tmp_path, monkeypatch):
     captured = {}
 
-    def fake_generate(spec_path, tag, output_path, agent=None, scenarios=True, sql=True, profile=None, guidance=""):
+    def fake_generate(spec_path, tag, output_path, agent=None, scenarios=True, sql=True, profile=None, guidance="", images=None):
         captured["guidance"] = guidance
         return write_workbook(StdResult(), tmp_path / "o.xlsx")
 
@@ -184,6 +184,78 @@ def test_generate_passes_guidance_through(tmp_path, monkeypatch):
     )
     assert res.status_code == 200
     assert captured["guidance"] == "focus on the approval flow only"
+
+
+def test_generate_passes_image_through(tmp_path, monkeypatch):
+    captured = {}
+
+    def fake_generate(spec_path, tag, output_path, agent=None, scenarios=True, sql=True, profile=None, guidance="", images=None):
+        captured["images"] = images
+        return write_workbook(StdResult(), tmp_path / "o.xlsx")
+
+    monkeypatch.setattr(webapp, "generate_std", fake_generate)
+    files = {
+        "file": ("spec.docx", b"dummy", "application/octet-stream"),
+        "image": ("screenshot.png", b"\x89PNG-fake-bytes", "image/png"),
+    }
+    res = client.post("/api/generate", data={"tag": "40100"}, files=files)
+
+    assert res.status_code == 200
+    assert captured["images"] is not None
+    assert captured["images"][0]["type"] == "image"
+    assert captured["images"][0]["source"]["media_type"] == "image/png"
+
+
+def test_generate_without_image_passes_none(tmp_path, monkeypatch):
+    captured = {}
+
+    def fake_generate(spec_path, tag, output_path, agent=None, scenarios=True, sql=True, profile=None, guidance="", images=None):
+        captured["images"] = images
+        return write_workbook(StdResult(), tmp_path / "o.xlsx")
+
+    monkeypatch.setattr(webapp, "generate_std", fake_generate)
+    files = {"file": ("spec.docx", b"dummy", "application/octet-stream")}
+    res = client.post("/api/generate", data={"tag": "40100"}, files=files)
+
+    assert res.status_code == 200
+    assert captured["images"] is None
+
+
+def test_generate_rejects_unsupported_image_format(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        webapp, "generate_std",
+        lambda *a, **k: write_workbook(StdResult(), tmp_path / "o.xlsx"),
+    )
+    files = {
+        "file": ("spec.docx", b"dummy", "application/octet-stream"),
+        "image": ("screenshot.gif", b"dummy", "image/gif"),
+    }
+    res = client.post("/api/generate", data={"tag": "40100"}, files=files)
+    assert res.status_code == 400
+
+
+def test_analyze_passes_guidance_and_image_through(tmp_path, monkeypatch):
+    captured = {}
+
+    def fake_analyze(spec_path, tag, output_path, agent=None, guidance="", images=None):
+        captured["guidance"] = guidance
+        captured["images"] = images
+        return write_report(AnalysisResult(), tmp_path / "o.docx")
+
+    monkeypatch.setattr(webapp, "generate_analysis", fake_analyze)
+    files = {
+        "file": ("spec.docx", b"dummy", "application/octet-stream"),
+        "image": ("screenshot.jpg", b"fake-jpg-bytes", "image/jpeg"),
+    }
+    res = client.post(
+        "/api/analyze",
+        data={"tag": "40100", "guidance": "focus on the external interface only"},
+        files=files,
+    )
+
+    assert res.status_code == 200
+    assert captured["guidance"] == "focus on the external interface only"
+    assert captured["images"][0]["source"]["media_type"] == "image/jpeg"
 
 
 def test_agents_endpoint_lists_registered_agents():
@@ -362,7 +434,7 @@ def test_analyze_returns_docx(tmp_path, monkeypatch):
 def test_analyze_defaults_to_whole_spec_when_tag_empty(tmp_path, monkeypatch):
     captured = {}
 
-    def fake_analyze(spec_path, tag, output_path, agent=None):
+    def fake_analyze(spec_path, tag, output_path, agent=None, guidance="", images=None):
         captured["tag"] = tag
         return write_report(AnalysisResult(), tmp_path / "o.docx")
 

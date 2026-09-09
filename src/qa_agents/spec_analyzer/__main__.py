@@ -34,10 +34,15 @@ def main() -> None:
         default=None,
         help="Output .docx path (default: output/ANALYSIS_<tag-or-full_spec>.docx)",
     )
+    parser.add_argument(
+        "--guidance",
+        default="",
+        help="Optional free-text instruction, e.g. a more precise focus than the tag alone",
+    )
     args = parser.parse_args()
 
     output = args.output or default_output_name(args.tag or "full_spec")
-    out = generate_analysis(args.spec, args.tag, output)
+    out = generate_analysis(args.spec, args.tag, output, guidance=args.guidance)
     print(f"Wrote {out}")
 
 

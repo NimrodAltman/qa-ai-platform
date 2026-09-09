@@ -31,19 +31,23 @@ def generate_std(
     sql: bool = True,
     profile: Profile = CRM_HEBREW,
     guidance: str = "",
+    images: list[dict] | None = None,
 ) -> Path:
     """Extract a spec, generate the STD, and write the Excel workbook.
 
     ``tag`` selects a specific task tag (``None`` = whole spec);
     ``scenarios`` / ``sql`` select which outputs to produce; ``guidance`` is
-    optional free text from the user.
+    optional free text from the user; ``images`` are Claude content blocks
+    (see ``llm.image_content_block``) attached to focus the agent visually.
     ``agent`` defaults to a live :class:`StdGeneratorAgent` (Claude API) built
     with ``profile``; pass a mock-backed agent in tests to avoid an API call
     (in which case ``profile`` is ignored — the agent already carries one).
     """
     agent = agent or StdGeneratorAgent(profile=profile)
     spec_text = extract(spec_path)
-    result = agent.run(spec_text, tag=tag, scenarios=scenarios, sql=sql, guidance=guidance)
+    result = agent.run(
+        spec_text, tag=tag, scenarios=scenarios, sql=sql, guidance=guidance, images=images
+    )
 
     produced = (len(result.scenarios) if scenarios else 0) + (
         len(result.sql_queries) if sql else 0

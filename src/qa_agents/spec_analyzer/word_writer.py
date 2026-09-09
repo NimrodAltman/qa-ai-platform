@@ -40,12 +40,24 @@ def _bullets(document: docx.document.Document, items: list[str]) -> None:
         _rtl(document.add_paragraph(item, style="List Bullet"))
 
 
-def write_report(result: AnalysisResult, path: str | Path, tag: str | None = None) -> Path:
+def write_report(
+    result: AnalysisResult,
+    path: str | Path,
+    tag: str | None = None,
+    images_attached: bool = False,
+) -> Path:
     """Write ``result`` to a ``.docx`` file and return its path."""
     document = docx.Document()
 
+    if tag:
+        focus_line = f'מיקוד: תיוג {tag}'
+    elif images_attached:
+        focus_line = "מיקוד: קטע שזוהה מתוך תמונה מצורפת"
+    else:
+        focus_line = "מיקוד: כלל האפיון"
+
     _heading(document, "דוח ניתוח אפיון", level=1)
-    _rtl(document.add_paragraph(f'מיקוד: תיוג {tag}' if tag else "מיקוד: כלל האפיון"))
+    _rtl(document.add_paragraph(focus_line))
 
     _heading(document, "חוקים עסקיים שזוהו", level=2)
     _bullets(document, result.business_rules)

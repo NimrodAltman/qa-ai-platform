@@ -269,6 +269,11 @@
             <label class="lbl">הנחיה נוספת (אופציונלי)</label>
             <textarea id="stdGuidance" rows="2" placeholder="לדוגמה: התמקד רק בתרחישי הדחייה, או התעלם מהערת המערכת החיצונית"></textarea>
           </div>
+          <div class="field">
+            <label class="lbl">צילום מסך מסומן (אופציונלי)</label>
+            <input type="file" id="stdImage" accept="image/png,image/jpeg" />
+            <p class="sub">אם התוצר הקודם לא היה מדויק — אפשר לצרף צילום עם סימון של הקטע הרלוונטי באפיון.</p>
+          </div>
         </div>
 
         <!-- Spec Analyzer fields -->
@@ -282,6 +287,15 @@
               <label class="lbl">מספר משימה (לשם הקובץ, אופציונלי)</label>
               <input type="text" id="analyzerTask" placeholder="לדוגמה: 40100" />
             </div>
+          </div>
+          <div class="field">
+            <label class="lbl">הנחיה נוספת (אופציונלי)</label>
+            <textarea id="analyzerGuidance" rows="2" placeholder="לדוגמה: התמקד רק בפערים הקשורים לממשק החיצוני"></textarea>
+          </div>
+          <div class="field">
+            <label class="lbl">צילום מסך מסומן (אופציונלי)</label>
+            <input type="file" id="analyzerImage" accept="image/png,image/jpeg" />
+            <p class="sub">אם התוצר הקודם לא היה מדויק — אפשר לצרף צילום עם סימון של הקטע הרלוונטי באפיון.</p>
           </div>
         </div>
 
@@ -651,6 +665,8 @@
     data.append('output_type', selectedOut);
     data.append('profile', selectedProfile);
     data.append('guidance', guidance);
+    const stdImageFile = document.getElementById('stdImage').files[0];
+    if (stdImageFile) data.append('image', stdImageFile);
 
     const res = await fetch('/api/generate', { method: 'POST', body: data });
     if (!res.ok) throw new Error(await errorDetail(res));
@@ -666,12 +682,16 @@
   async function runSpecAnalyzer(file){
     const tag = document.getElementById('analyzerTag').value.trim();
     const task = document.getElementById('analyzerTask').value.trim();
+    const guidance = document.getElementById('analyzerGuidance').value.trim();
     const nameKey = task || tag || 'full_spec';
 
     const data = new FormData();
     data.append('file', file);
     data.append('tag', tag);
     data.append('task_number', task);
+    data.append('guidance', guidance);
+    const analyzerImageFile = document.getElementById('analyzerImage').files[0];
+    if (analyzerImageFile) data.append('image', analyzerImageFile);
 
     const res = await fetch('/api/analyze', { method: 'POST', body: data });
     if (!res.ok) throw new Error(await errorDetail(res));

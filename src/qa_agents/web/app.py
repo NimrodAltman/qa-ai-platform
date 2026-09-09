@@ -18,7 +18,7 @@ import uuid
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, Form, HTTPException, Request, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -33,7 +33,7 @@ from .auth import (
 )
 from ..base import get_agent, list_agents
 from ..extraction import SUPPORTED
-from ..llm import AVAILABLE_MODELS
+from ..llm import AVAILABLE_MODELS, IMAGE_MEDIA_TYPES, image_content_block
 from ..spec_analyzer.agent import SpecAnalyzerAgent
 from ..spec_analyzer.pipeline import generate_analysis
 from ..std_generator.agent import StdGeneratorAgent
@@ -85,6 +85,21 @@ FEEDBACK_CATEGORY_ACTIONS = {
 }
 
 
+async def _read_image_blocks(image: UploadFile | None) -> list[dict] | None:
+    """Read an optional uploaded image into a Claude content-block list."""
+    if image is None or not image.filename:
+        return None
+    suffix = Path(image.filename).suffix.lower()
+    media_type = IMAGE_MEDIA_TYPES.get(suffix)
+    if media_type is None:
+        raise HTTPException(
+            status_code=400,
+            detail=f"פורמט תמונה לא נתמך {suffix!r}. נתמכים: {', '.join(IMAGE_MEDIA_TYPES)}",
+        )
+    data = await image.read()
+    return [image_content_block(data, media_type)]
+
+
 @app.get("/", response_class=HTMLResponse)
 def index() -> str:
     return (_STATIC / "index.html").read_text(encoding="utf-8")
@@ -130,6 +145,7 @@ async def generate(
     output_type: str = Form("both"),  # "both" | "scenarios" | "sql"
     profile: str = Form(CRM_HEBREW.name),
     guidance: str = Form(""),
+    image: UploadFile | None = File(None),
 ) -> FileResponse:
     allowed = allowed_agent_names(user)
     if allowed is not None and "std_generator" not in allowed:
@@ -163,6 +179,8 @@ async def generate(
         shutil.copyfileobj(file.file, tmp)
         spec_path = tmp.name
 
+    images = await _read_image_blocks(image)
+
     try:
         chosen_profile = PROFILES[profile]
         agent = StdGeneratorAgent(
@@ -171,7 +189,7 @@ async def generate(
         out = generate_std(
             spec_path, agent_tag, unique_path,
             agent=agent, scenarios=scenarios, sql=sql, profile=chosen_profile,
-            guidance=guidance,
+            guidance=guidance, images=images,
         )
     except Exception as exc:  # surface generation failures to the UI
         raise HTTPException(status_code=500, detail=f"ההפקה נכשלה: {exc}")
@@ -189,6 +207,8 @@ async def analyze(
     user: dict = Depends(get_current_user),
     tag: str = Form(""),
     task_number: str = Form(""),
+    guidance: str = Form(""),
+    image: UploadFile | None = File(None),
 ) -> FileResponse:
     """Run the Spec Analyzer agent. Empty ``tag`` analyzes the whole spec."""
     allowed = allowed_agent_names(user)
@@ -210,9 +230,14 @@ async def analyze(
         shutil.copyfileobj(file.file, tmp)
         spec_path = tmp.name
 
+    images = await _read_image_blocks(image)
+
     try:
         agent = SpecAnalyzerAgent(model=store.get_agent_model("spec_analyzer"))
-        out = generate_analysis(spec_path, tag.strip() or None, unique_path, agent=agent)
+        out = generate_analysis(
+            spec_path, tag.strip() or None, unique_path,
+            agent=agent, guidance=guidance, images=images,
+        )
     except Exception as exc:  # surface generation failures to the UI
         raise HTTPException(status_code=500, detail=f"הניתוח נכשל: {exc}")
 

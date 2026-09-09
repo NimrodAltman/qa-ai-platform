@@ -51,10 +51,24 @@ class SpecAnalyzerAgent(BaseAgent):
         self._completer = completer or anthropic_completer(model, ANALYSIS_SCHEMA)
         self.model = model
 
-    def run(self, spec_text: str, tag: str | None = None) -> AnalysisResult:
-        """Analyze ``spec_text``. ``tag`` focuses on one task tag (None = whole spec)."""
+    def run(
+        self,
+        spec_text: str,
+        tag: str | None = None,
+        guidance: str = "",
+        images: list[dict] | None = None,
+    ) -> AnalysisResult:
+        """Analyze ``spec_text``. ``tag`` focuses on one task tag (None = whole spec).
+
+        ``guidance`` is optional free text from the user; ``images`` are Claude
+        content blocks (see ``llm.image_content_block``), e.g. a marked-up
+        screenshot pointing at the part of the spec to analyze.
+        """
         system = build_system_prompt()
-        user = build_user_prompt(spec_text, tag=tag)
+        text = build_user_prompt(
+            spec_text, tag=tag, guidance=guidance, images_attached=bool(images)
+        )
+        user = [*images, {"type": "text", "text": text}] if images else text
         raw = self._completer(system, user)
         return parse_analysis(raw)
 
