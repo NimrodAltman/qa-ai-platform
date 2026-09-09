@@ -126,6 +126,12 @@ type — scenarios / SQL / both) or Spec Analyzer (optional tag, defaults to the
 whole spec), upload a document, and download the result. The API key is read
 from a local `.env`; generation runs server-side.
 
+Both agents also accept, optionally: **free-text guidance** (a more precise
+instruction than the tag alone, e.g. "focus on the rejection scenarios only"),
+and an **image** — a marked-up screenshot pointing at the relevant part of the
+spec. With no tag given, an attached image tells the model to find the right
+scope from the image itself instead of covering the whole document.
+
 ## Multi-organization support
 
 STD Generator's `Profile` (`std_generator/profile.py`) is the seam that lets
@@ -205,9 +211,12 @@ examples/                # fully fictional demo specifications
   without touching `.env` or code.
 - ✅ Authentication & roles — session login, admin vs. user, User Management
   screen, and a per-user agent-access data model (UI for it not yet built).
+- ✅ Per-user data isolation — each user sees only their own runs/feedback;
+  an admin still sees everyone's.
+- ✅ Optional free-text guidance and image upload (a marked-up screenshot) on
+  both agents, to focus generation/analysis on a specific part of the spec
+  without a task tag.
 - Extend multi-profile support (persona/language, not just Excel layout) to
   Spec Analyzer — currently STD Generator only.
 - Per-user agent-access picker in User Management (the data model already
   supports it — see `store.set_user_agent_access()`).
-- Per-user visibility into only *their own* runs/feedback (currently shared
-  across every logged-in user, by design, to keep the first version scoped).
