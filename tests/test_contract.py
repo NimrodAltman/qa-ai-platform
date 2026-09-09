@@ -18,9 +18,9 @@ def test_std_result_holds_scenarios_and_queries():
             Scenario(
                 entity="פרטי (contact)",
                 event="שליפת אוכלוסייה - חיובי",
-                target_field='שדה (new_mailreports)',
+                target_field='שדה (demo_mailoptout)',
                 schema="פרטי (contact)",
-                condition="new_mailreports = 0 או NULL",
+                condition="demo_mailoptout = 0 או NULL",
                 expected_result="רשומה תיכלל באוכלוסייה",
             )
         ],

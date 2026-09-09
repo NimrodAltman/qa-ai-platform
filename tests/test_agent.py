@@ -15,9 +15,9 @@ _MODEL_JSON = json.dumps(
             {
                 "entity": "פרטי (contact)",
                 "event": "שליפת אוכלוסייה - חיובי",
-                "target_field": 'שדה "סירוב דוחות" (new_mailreports)',
+                "target_field": 'שדה "סירוב דוחות" (demo_mailoptout)',
                 "schema": "פרטי (contact)",
-                "condition": "new_mailreports = 0 או NULL",
+                "condition": "demo_mailoptout = 0 או NULL",
                 "expected_result": "רשומה תיכלל באוכלוסייה",
             }
         ],
