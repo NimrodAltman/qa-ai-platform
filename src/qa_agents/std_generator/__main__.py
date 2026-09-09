@@ -46,6 +46,11 @@ def main() -> None:
         default=CRM_HEBREW.name,
         help="Organization profile (default: %(default)s)",
     )
+    parser.add_argument(
+        "--guidance",
+        default="",
+        help="Optional free-text instruction, e.g. a more precise focus than the tag alone",
+    )
     args = parser.parse_args()
 
     scenarios = args.outputs in ("both", "scenarios")
@@ -54,7 +59,10 @@ def main() -> None:
     output = args.output or default_output_name(args.tag, scenarios, sql)
     profile = PROFILES[args.profile]
 
-    out = generate_std(args.spec, tag, output, scenarios=scenarios, sql=sql, profile=profile)
+    out = generate_std(
+        args.spec, tag, output,
+        scenarios=scenarios, sql=sql, profile=profile, guidance=args.guidance,
+    )
     print(f"Wrote {out}")
 
 

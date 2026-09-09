@@ -94,6 +94,19 @@ def test_run_uses_the_given_profile_for_prompts():
     assert "Task tag: 99" in captured["user"]
 
 
+def test_run_passes_guidance_through_to_the_prompt():
+    captured = {}
+
+    def fake_completer(system: str, user: str) -> str:
+        captured["user"] = user
+        return _MODEL_JSON
+
+    agent = StdGeneratorAgent(completer=fake_completer)
+    agent.run("some spec text", tag="1", guidance="focus on rejection scenarios only")
+
+    assert "focus on rejection scenarios only" in captured["user"]
+
+
 def test_agent_is_registered():
     assert get_agent("std_generator") is StdGeneratorAgent
 

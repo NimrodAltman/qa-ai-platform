@@ -81,15 +81,19 @@ class StdGeneratorAgent(BaseAgent):
         tag: str | None = None,
         scenarios: bool = True,
         sql: bool = True,
+        guidance: str = "",
     ) -> StdResult:
         """Generate an STD from ``spec_text``.
 
         ``tag`` selects a specific task tag (``None`` = whole spec);
-        ``scenarios`` / ``sql`` select which outputs to produce.
+        ``scenarios`` / ``sql`` select which outputs to produce; ``guidance``
+        is optional free text from the user, e.g. a more precise instruction
+        than the tag number alone.
         """
         system = build_system_prompt(self.profile)
         user = build_user_prompt(
-            spec_text, tag=tag, scenarios=scenarios, sql=sql, profile=self.profile
+            spec_text, tag=tag, scenarios=scenarios, sql=sql,
+            profile=self.profile, guidance=guidance,
         )
         raw = self._completer(system, user)
         return parse_std(raw)

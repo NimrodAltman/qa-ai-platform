@@ -36,3 +36,14 @@ def test_scenarios_only():
 def test_sql_only():
     prompt = build_user_prompt("spec text", tag="1", scenarios=False, sql=True)
     assert "SQL בלבד" in prompt
+
+
+def test_guidance_included_when_given():
+    prompt = build_user_prompt("spec text", tag="1", guidance="התמקד בתרחישי דחייה בלבד")
+    assert "התמקד בתרחישי דחייה בלבד" in prompt
+    assert CRM_HEBREW.guidance_label in prompt
+
+
+def test_guidance_omitted_when_blank():
+    prompt = build_user_prompt("spec text", tag="1", guidance="   ")
+    assert CRM_HEBREW.guidance_label not in prompt

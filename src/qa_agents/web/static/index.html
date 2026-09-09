@@ -265,6 +265,10 @@
               <label><input type="radio" name="out" value="sql">SQL בלבד</label>
             </div>
           </div>
+          <div class="field">
+            <label class="lbl">הנחיה נוספת (אופציונלי)</label>
+            <textarea id="stdGuidance" rows="2" placeholder="לדוגמה: התמקד רק בתרחישי הדחייה, או התעלם מהערת המערכת החיצונית"></textarea>
+          </div>
         </div>
 
         <!-- Spec Analyzer fields -->
@@ -633,6 +637,7 @@
     const selectedMode = mode();       // snapshot the selections at submit time so a
     const selectedOut = outType();     // change during generation can't desync the file name
     const selectedProfile = stdProfileSelect.value;
+    const guidance = document.getElementById('stdGuidance').value.trim();
 
     if (selectedMode === 'tag' && !tag) throw new Error('במצב "תיוג ספציפי" חובה להזין מספר תיוג');
     const nameKey = task || tag;
@@ -645,6 +650,7 @@
     data.append('task_number', task);
     data.append('output_type', selectedOut);
     data.append('profile', selectedProfile);
+    data.append('guidance', guidance);
 
     const res = await fetch('/api/generate', { method: 'POST', body: data });
     if (!res.ok) throw new Error(await errorDetail(res));

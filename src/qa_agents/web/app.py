@@ -129,6 +129,7 @@ async def generate(
     task_number: str = Form(""),
     output_type: str = Form("both"),  # "both" | "scenarios" | "sql"
     profile: str = Form(CRM_HEBREW.name),
+    guidance: str = Form(""),
 ) -> FileResponse:
     allowed = allowed_agent_names(user)
     if allowed is not None and "std_generator" not in allowed:
@@ -170,6 +171,7 @@ async def generate(
         out = generate_std(
             spec_path, agent_tag, unique_path,
             agent=agent, scenarios=scenarios, sql=sql, profile=chosen_profile,
+            guidance=guidance,
         )
     except Exception as exc:  # surface generation failures to the UI
         raise HTTPException(status_code=500, detail=f"ההפקה נכשלה: {exc}")

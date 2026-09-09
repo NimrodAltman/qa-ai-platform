@@ -56,7 +56,7 @@ def test_generate_returns_xlsx(tmp_path, monkeypatch):
 def test_generate_maps_mode_and_output_type(tmp_path, monkeypatch):
     captured = {}
 
-    def fake_generate(spec_path, tag, output_path, agent=None, scenarios=True, sql=True, profile=None):
+    def fake_generate(spec_path, tag, output_path, agent=None, scenarios=True, sql=True, profile=None, guidance=""):
         captured.update(tag=tag, output_path=str(output_path), scenarios=scenarios, sql=sql)
         return write_workbook(StdResult(), tmp_path / "o.xlsx")
 
@@ -121,7 +121,7 @@ def test_agent_settings_rejects_unknown_model():
 def test_generate_uses_configured_model(tmp_path, monkeypatch):
     captured = {}
 
-    def fake_generate(spec_path, tag, output_path, agent=None, scenarios=True, sql=True, profile=None):
+    def fake_generate(spec_path, tag, output_path, agent=None, scenarios=True, sql=True, profile=None, guidance=""):
         captured["model"] = agent.model
         return write_workbook(StdResult(), tmp_path / "o.xlsx")
 
@@ -153,7 +153,7 @@ def test_generate_rejects_unknown_profile():
 def test_generate_passes_selected_profile_through(tmp_path, monkeypatch):
     captured = {}
 
-    def fake_generate(spec_path, tag, output_path, agent=None, scenarios=True, sql=True, profile=None):
+    def fake_generate(spec_path, tag, output_path, agent=None, scenarios=True, sql=True, profile=None, guidance=""):
         captured["profile"] = profile.name
         return write_workbook(StdResult(), tmp_path / "o.xlsx")
 
@@ -166,6 +166,24 @@ def test_generate_passes_selected_profile_through(tmp_path, monkeypatch):
     )
     assert res.status_code == 200
     assert captured["profile"] == "ecommerce-english"
+
+
+def test_generate_passes_guidance_through(tmp_path, monkeypatch):
+    captured = {}
+
+    def fake_generate(spec_path, tag, output_path, agent=None, scenarios=True, sql=True, profile=None, guidance=""):
+        captured["guidance"] = guidance
+        return write_workbook(StdResult(), tmp_path / "o.xlsx")
+
+    monkeypatch.setattr(webapp, "generate_std", fake_generate)
+    files = {"file": ("spec.docx", b"dummy", "application/octet-stream")}
+    res = client.post(
+        "/api/generate",
+        data={"tag": "40100", "guidance": "focus on the approval flow only"},
+        files=files,
+    )
+    assert res.status_code == 200
+    assert captured["guidance"] == "focus on the approval flow only"
 
 
 def test_agents_endpoint_lists_registered_agents():

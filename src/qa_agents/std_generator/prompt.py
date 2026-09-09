@@ -21,11 +21,13 @@ def build_user_prompt(
     scenarios: bool = True,
     sql: bool = True,
     profile: Profile = CRM_HEBREW,
+    guidance: str = "",
 ) -> str:
     """Return the user prompt for the specification.
 
     ``tag`` selects a specific task tag; ``None`` means cover the whole spec.
-    ``scenarios`` / ``sql`` select which outputs to produce.
+    ``scenarios`` / ``sql`` select which outputs to produce. ``guidance`` is
+    optional free text from the user (e.g. "focus on the approval flow only").
     """
     scope = profile.tag_scope.format(tag=tag) if tag else profile.whole_scope
 
@@ -36,4 +38,6 @@ def build_user_prompt(
     else:
         outputs = profile.outputs_sql
 
-    return f"{scope}\n{outputs}\n\n{profile.spec_label}\n{spec_text}"
+    guidance_block = f"\n\n{profile.guidance_label}\n{guidance.strip()}" if guidance.strip() else ""
+
+    return f"{scope}\n{outputs}{guidance_block}\n\n{profile.spec_label}\n{spec_text}"

@@ -42,6 +42,7 @@ class Profile:
     outputs_scenarios: str
     outputs_sql: str
     spec_label: str
+    guidance_label: str
 
 
 _CRM_HEBREW_SYSTEM_PROMPT = """\
@@ -112,6 +113,7 @@ CRM_HEBREW = Profile(
     outputs_scenarios="הפק תסריטי בדיקה בלבד. החזר את מערך sql_queries ריק.",
     outputs_sql="הפק שאילתות SQL בלבד. החזר את מערך scenarios ריק.",
     spec_label="--- אפיון ---",
+    guidance_label="הנחיה נוספת מהמשתמש (יש לתת לה עדיפות, אך לא לחרוג מהאפיון):",
 )
 
 
@@ -195,6 +197,7 @@ ECOMMERCE_ENGLISH = Profile(
     outputs_scenarios="Generate test scenarios only. Return an empty sql_queries array.",
     outputs_sql="Generate SQL queries only. Return an empty scenarios array.",
     spec_label="--- Specification ---",
+    guidance_label="Additional user guidance (prioritize it, but do not go beyond the spec):",
 )
 
 PROFILES: dict[str, Profile] = {p.name: p for p in (CRM_HEBREW, ECOMMERCE_ENGLISH)}
