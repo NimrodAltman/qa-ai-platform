@@ -301,6 +301,15 @@ def set_user_role(user_id: int, role: str) -> bool:
         return cur.rowcount > 0
 
 
+def set_user_password(user_id: int, password_hash: str, salt: str) -> bool:
+    with _connect() as conn:
+        cur = conn.execute(
+            "UPDATE users SET password_hash = ?, salt = ? WHERE id = ?",
+            (password_hash, salt, user_id),
+        )
+        return cur.rowcount > 0
+
+
 def delete_user(user_id: int) -> bool:
     with _connect() as conn:
         conn.execute("DELETE FROM user_agent_access WHERE user_id = ?", (user_id,))

@@ -222,6 +222,15 @@ def test_set_user_role():
     assert store.set_user_role(999999, "admin") is False
 
 
+def test_set_user_password():
+    uid = store.create_user("dave2", "old-hash", "old-salt", "user")
+    assert store.set_user_password(uid, "new-hash", "new-salt") is True
+    user = store.get_user(uid)
+    assert user["password_hash"] == "new-hash"
+    assert user["salt"] == "new-salt"
+    assert store.set_user_password(999999, "x", "y") is False
+
+
 def test_delete_user_and_cascades_agent_access():
     uid = store.create_user("erin", "hash", "salt", "user")
     store.set_user_agent_access(uid, ["std_generator"])

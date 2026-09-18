@@ -1,7 +1,8 @@
 # QA AI Platform
 
-An extensible, config-driven platform for AI-powered QA agents. Two agents ship
-today:
+QA AI Platform turns a specification document into AI-generated test scenarios,
+SQL, and readiness analysis — a web-based hub for QA agents, built so a new
+organization or a new agent is added, not rewritten in. Two agents ship today:
 
 - **STD Generator** — reads a specification and produces structured test
   scenarios and SQL population queries, exported as an Excel workbook.
@@ -90,9 +91,12 @@ python -m uvicorn qa_agents.web.app:app --port 8000
 # open http://localhost:8000
 ```
 
-The first run seeds a default admin account — **username `admin`, password
-`admin`** — change the password (or add a real user and delete the default
-one) from User Management before exposing this beyond your own machine.
+⚠️ **The first run seeds a known, documented installation credential —
+`admin` / `admin`** — the same way many self-hosted tools ship a first-run
+default (this is a deliberate seed for local/demo setup, not an oversight).
+**Change it before any use beyond your own machine**: log in, go to User
+Management, and either change the password or create a real admin account
+and delete this one.
 
 **Login required.** Every screen sits behind a session (a signed cookie —
 see `SESSION_SECRET` in `.env.example`). Two roles: **admin** sees and
@@ -210,7 +214,8 @@ examples/                # fully fictional demo specifications
 - ✅ Agent Management — per-agent Claude model override (or "default"), editable
   without touching `.env` or code.
 - ✅ Authentication & roles — session login, admin vs. user, User Management
-  screen, and a per-user agent-access data model (UI for it not yet built).
+  screen, self-service password change, and a per-user agent-access data
+  model (UI for it not yet built).
 - ✅ Per-user data isolation — each user sees only their own runs/feedback;
   an admin still sees everyone's.
 - ✅ Optional free-text guidance and image upload (a marked-up screenshot) on

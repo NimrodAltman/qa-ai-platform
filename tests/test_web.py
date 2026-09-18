@@ -628,6 +628,50 @@ def test_delete_user():
     assert all(u["id"] != uid for u in client.get("/api/users").json())
 
 
+# ===== Self-service password change =====
+
+def test_change_my_password_success_and_relogin():
+    res = client.post(
+        "/api/me/password",
+        data={"current_password": "admin", "new_password": "new-admin-pw"},
+    )
+    assert res.status_code == 200
+
+    # the old password no longer works, the new one does
+    client.post("/api/logout")
+    assert client.post(
+        "/api/login", data={"username": "admin", "password": "admin"}
+    ).status_code == 401
+    assert client.post(
+        "/api/login", data={"username": "admin", "password": "new-admin-pw"}
+    ).status_code == 200
+
+
+def test_change_my_password_rejects_wrong_current_password():
+    res = client.post(
+        "/api/me/password",
+        data={"current_password": "not-the-real-password", "new_password": "x"},
+    )
+    assert res.status_code == 400
+
+
+def test_change_my_password_requires_login():
+    client.post("/api/logout")
+    res = client.post(
+        "/api/me/password", data={"current_password": "admin", "new_password": "x"}
+    )
+    assert res.status_code == 401
+
+
+def test_regular_user_can_change_their_own_password():
+    _create_user("selfchange", "pw")
+    _login_as("selfchange", "pw")
+    res = client.post(
+        "/api/me/password", data={"current_password": "pw", "new_password": "new-pw"}
+    )
+    assert res.status_code == 200
+
+
 # ===== Per-user data isolation (item 3) =====
 
 def test_non_admin_sees_only_own_runs(tmp_path, monkeypatch):

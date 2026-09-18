@@ -392,6 +392,22 @@ def quality_stats(admin: dict = Depends(require_admin)) -> dict:
     return stats
 
 
+@app.post("/api/me/password")
+async def change_my_password(
+    user: dict = Depends(get_current_user),
+    current_password: str = Form(...),
+    new_password: str = Form(...),
+) -> dict:
+    """Self-service password change for the logged-in user (any role)."""
+    if not verify_password(current_password, user["password_hash"], user["salt"]):
+        raise HTTPException(status_code=400, detail="הסיסמה הנוכחית שגויה")
+    if not new_password:
+        raise HTTPException(status_code=400, detail="סיסמה חדשה היא שדה חובה")
+    password_hash, salt = hash_password(new_password)
+    store.set_user_password(user["id"], password_hash, salt)
+    return {"ok": True}
+
+
 @app.get("/api/users")
 def users(admin: dict = Depends(require_admin)) -> list[dict]:
     return store.list_users()

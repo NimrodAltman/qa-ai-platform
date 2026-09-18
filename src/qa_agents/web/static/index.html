@@ -421,6 +421,23 @@
     </div>
 
     <div class="card">
+      <h2>שינוי הסיסמה שלי</h2>
+      <p class="sub">כולל שינוי הסיסמה של חשבון ה-admin/admin שנוצר אוטומטית בהתקנה.</p>
+      <form id="changePasswordForm" class="userMgmtGrid">
+        <div class="field">
+          <label class="lbl">סיסמה נוכחית</label>
+          <input type="password" id="currentPassword" required />
+        </div>
+        <div class="field">
+          <label class="lbl">סיסמה חדשה</label>
+          <input type="password" id="newPassword" required />
+        </div>
+        <button class="btn" type="submit">עדכן סיסמה</button>
+      </form>
+      <div class="status" id="changePasswordStatus"></div>
+    </div>
+
+    <div class="card">
       <h2>הוספת משתמש</h2>
       <form id="newUserForm" class="userMgmtGrid">
         <div class="field">
@@ -966,6 +983,26 @@
     } catch (err) { alert('שגיאת רשת: ' + err.message); }
     loadUserManagement();
   }
+
+  document.getElementById('changePasswordForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const statusEl = document.getElementById('changePasswordStatus');
+    const data = new FormData();
+    data.append('current_password', document.getElementById('currentPassword').value);
+    data.append('new_password', document.getElementById('newPassword').value);
+    try {
+      const res = await fetch('/api/me/password', { method: 'POST', body: data });
+      if (!res.ok) {
+        const detail = (await res.json()).detail || 'שגיאה';
+        statusEl.className = 'status show err'; statusEl.textContent = '❌ ' + detail;
+        return;
+      }
+      statusEl.className = 'status show ok'; statusEl.textContent = '✅ הסיסמה עודכנה';
+      document.getElementById('changePasswordForm').reset();
+    } catch (err) {
+      statusEl.className = 'status show err'; statusEl.textContent = '❌ שגיאת רשת: ' + err.message;
+    }
+  });
 
   document.getElementById('newUserForm').addEventListener('submit', async (e) => {
     e.preventDefault();
