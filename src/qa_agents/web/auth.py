@@ -28,7 +28,6 @@ def session_secret() -> str:
     return os.environ.get("SESSION_SECRET") or secrets.token_hex(32)
 
 DEFAULT_ADMIN_USERNAME = "admin"
-DEFAULT_ADMIN_PASSWORD = "admin"
 
 
 def hash_password(password: str, salt: str | None = None) -> tuple[str, str]:
@@ -45,12 +44,20 @@ def verify_password(password: str, password_hash: str, salt: str) -> bool:
     return secrets.compare_digest(candidate, password_hash)
 
 
-def ensure_default_admin() -> None:
-    """Seed a default admin user the first time the app runs with an empty DB."""
+def ensure_default_admin() -> str | None:
+    """Seed the admin user the first time the app runs with an empty DB.
+
+    Returns the generated password so the caller can show it once, or None
+    when users already exist. The password is random rather than a published
+    default, so an exposed instance can't be taken over with a known
+    credential before anyone gets round to changing it.
+    """
     if store.user_count() > 0:
-        return
-    password_hash, salt = hash_password(DEFAULT_ADMIN_PASSWORD)
+        return None
+    password = secrets.token_urlsafe(12)
+    password_hash, salt = hash_password(password)
     store.create_user(DEFAULT_ADMIN_USERNAME, password_hash, salt, "admin")
+    return password
 
 
 def get_current_user(request: Request) -> dict:

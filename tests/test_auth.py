@@ -50,9 +50,28 @@ def test_ensure_default_admin_seeds_exactly_one_admin():
     assert users[0]["role"] == "admin"
 
 
+def test_seeded_admin_password_is_random_not_a_published_default():
+    """A known seeded credential takes over any exposed instance, so the
+    first-run password must be random and returned for one-time display."""
+    password = auth.ensure_default_admin()
+    assert password is not None
+    assert len(password) >= 12
+
+    user = store.get_user_by_username(auth.DEFAULT_ADMIN_USERNAME)
+    assert auth.verify_password(password, user["password_hash"], user["salt"])
+    assert not auth.verify_password("admin", user["password_hash"], user["salt"])
+
+
+def test_seeded_admin_password_differs_between_installs(tmp_path, monkeypatch):
+    first = auth.ensure_default_admin()
+    monkeypatch.setattr(store, "DB_PATH", tmp_path / "second.db")
+    second = auth.ensure_default_admin()
+    assert first != second
+
+
 def test_ensure_default_admin_is_idempotent():
     auth.ensure_default_admin()
-    auth.ensure_default_admin()
+    assert auth.ensure_default_admin() is None  # no new password on re-run
     assert store.user_count() == 1
 
 

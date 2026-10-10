@@ -14,13 +14,19 @@ from qa_agents.web import store as webstore
 client = TestClient(webapp.app)
 
 
+# The seeded admin password is random per DB, so the fixture captures it
+# here for the tests that need to log back in as admin.
+ADMIN_PASSWORD = ""
+
+
 @pytest.fixture(autouse=True)
 def _isolate_db(tmp_path, monkeypatch):
     """Point the run store at a throwaway DB, seeded + logged in as admin,
     for every web test (most endpoints require a session)."""
+    global ADMIN_PASSWORD
     monkeypatch.setattr(webstore, "DB_PATH", tmp_path / "runs.db")
-    webauth.ensure_default_admin()
-    client.post("/api/login", data={"username": "admin", "password": "admin"})
+    ADMIN_PASSWORD = webauth.ensure_default_admin()
+    client.post("/api/login", data={"username": "admin", "password": ADMIN_PASSWORD})
     yield
     client.post("/api/logout")
 
@@ -509,7 +515,7 @@ def test_login_success_reflected_in_me():
 def test_logout_clears_session():
     client.post("/api/logout")
     assert client.get("/api/me").status_code == 401
-    _login_as("admin", "admin")  # restore for fixture teardown
+    _login_as("admin", ADMIN_PASSWORD)  # restore for fixture teardown
 
 
 def test_non_admin_can_list_feedback_scoped_to_their_own():
@@ -633,14 +639,14 @@ def test_delete_user():
 def test_change_my_password_success_and_relogin():
     res = client.post(
         "/api/me/password",
-        data={"current_password": "admin", "new_password": "new-admin-pw"},
+        data={"current_password": ADMIN_PASSWORD, "new_password": "new-admin-pw"},
     )
     assert res.status_code == 200
 
     # the old password no longer works, the new one does
     client.post("/api/logout")
     assert client.post(
-        "/api/login", data={"username": "admin", "password": "admin"}
+        "/api/login", data={"username": "admin", "password": ADMIN_PASSWORD}
     ).status_code == 401
     assert client.post(
         "/api/login", data={"username": "admin", "password": "new-admin-pw"}
@@ -658,7 +664,7 @@ def test_change_my_password_rejects_wrong_current_password():
 def test_change_my_password_requires_login():
     client.post("/api/logout")
     res = client.post(
-        "/api/me/password", data={"current_password": "admin", "new_password": "x"}
+        "/api/me/password", data={"current_password": ADMIN_PASSWORD, "new_password": "x"}
     )
     assert res.status_code == 401
 
@@ -701,7 +707,7 @@ def test_admin_sees_every_users_runs(tmp_path, monkeypatch):
     _login_as("owner2", "pw")
     own_run_id = _make_run(tmp_path, monkeypatch)
 
-    _login_as("admin", "admin")
+    _login_as("admin", ADMIN_PASSWORD)
     visible_ids = {r["id"] for r in client.get("/api/runs").json()}
     assert {admin_run_id, own_run_id} <= visible_ids
 
@@ -728,7 +734,7 @@ def test_admin_can_download_any_users_run(tmp_path, monkeypatch):
     _login_as("owner4", "pw")
     own_run_id = _make_run(tmp_path, monkeypatch)
 
-    _login_as("admin", "admin")
+    _login_as("admin", ADMIN_PASSWORD)
     res = client.get(f"/api/runs/{own_run_id}/download")
     assert res.status_code == 200
 
@@ -772,5 +778,5 @@ def test_feedback_list_scoped_to_submitter_admin_sees_all(tmp_path, monkeypatch)
 
     assert {f["id"] for f in client.get("/api/feedback").json()} == {fid}
 
-    _login_as("admin", "admin")
+    _login_as("admin", ADMIN_PASSWORD)
     assert fid in {f["id"] for f in client.get("/api/feedback").json()}

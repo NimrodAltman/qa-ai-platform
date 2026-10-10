@@ -23,6 +23,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from . import store
 from .auth import (
+    DEFAULT_ADMIN_USERNAME,
     allowed_agent_names,
     ensure_default_admin,
     get_current_user,
@@ -41,7 +42,15 @@ from ..std_generator.pipeline import generate_std, output_suffix
 from ..std_generator.profile import CRM_HEBREW, PROFILES
 
 load_dotenv()  # pick up ANTHROPIC_API_KEY from a local .env for convenience
-ensure_default_admin()  # first run only: seeds admin/admin if no users exist
+
+_seeded_admin_password = ensure_default_admin()  # first run only
+if _seeded_admin_password:
+    print("=" * 64)
+    print("  First run — created the admin account:")
+    print(f"      username: {DEFAULT_ADMIN_USERNAME}")
+    print(f"      password: {_seeded_admin_password}")
+    print("  Shown once only. Save it, then change it in User Management.")
+    print("=" * 64)
 
 app = FastAPI(title="QA AI Platform")
 app.add_middleware(SessionMiddleware, secret_key=session_secret())
