@@ -1,5 +1,7 @@
 """Tests for the FastAPI web layer (generation mocked — no API call)."""
 
+from pathlib import Path
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -632,6 +634,57 @@ def test_delete_user():
     res = client.delete(f"/api/users/{uid}")
     assert res.status_code == 200
     assert all(u["id"] != uid for u in client.get("/api/users").json())
+
+
+# ===== Output path traversal =====
+
+def test_generate_keeps_output_inside_the_output_dir(tmp_path, monkeypatch):
+    """'../../../pwned' as a task number must not steer the written file out
+    of output/ — unsanitised it resolved to the repo root (and worse)."""
+    captured = {}
+
+    def fake_generate(spec_path, tag, output_path, agent=None, scenarios=True, sql=True, profile=None, guidance="", images=None):
+        captured["output_path"] = output_path
+        return write_workbook(StdResult(), tmp_path / "o.xlsx")
+
+    monkeypatch.setattr(webapp, "generate_std", fake_generate)
+    files = {"file": ("spec.docx", b"dummy", "application/octet-stream")}
+    res = client.post(
+        "/api/generate", data={"tag": "40100", "task_number": "../../../pwned"}, files=files
+    )
+
+    assert res.status_code == 200
+    output_dir = Path("output").resolve()
+    written = Path(captured["output_path"]).resolve()
+    assert output_dir in written.parents, f"escaped output/: {written}"
+    assert ".." not in str(captured["output_path"])
+
+
+def test_analyze_keeps_output_inside_the_output_dir(tmp_path, monkeypatch):
+    captured = {}
+
+    def fake_analyze(spec_path, tag, output_path, agent=None, guidance="", images=None):
+        captured["output_path"] = output_path
+        return write_report(AnalysisResult(), tmp_path / "o.docx")
+
+    monkeypatch.setattr(webapp, "generate_analysis", fake_analyze)
+    files = {"file": ("spec.docx", b"dummy", "application/octet-stream")}
+    res = client.post(
+        "/api/analyze", data={"task_number": "../../../../pwned"}, files=files
+    )
+
+    assert res.status_code == 200
+    output_dir = Path("output").resolve()
+    written = Path(captured["output_path"]).resolve()
+    assert output_dir in written.parents, f"escaped output/: {written}"
+
+
+def test_generate_rejects_a_task_number_with_no_safe_characters():
+    files = {"file": ("spec.docx", b"dummy", "application/octet-stream")}
+    res = client.post(
+        "/api/generate", data={"tag": "", "task_number": "../.."}, files=files
+    )
+    assert res.status_code == 400
 
 
 # ===== Self-service password change =====

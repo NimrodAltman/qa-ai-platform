@@ -11,6 +11,7 @@ Requires ANTHROPIC_API_KEY (loaded from a local .env if present).
 
 from __future__ import annotations
 
+import re
 import shutil
 import tempfile
 import uuid
@@ -91,6 +92,17 @@ FEEDBACK_CATEGORY_ACTIONS = {
 }
 
 
+_UNSAFE_NAME_CHARS = re.compile(r"[^A-Za-z0-9_-]")
+
+
+def _safe_name_key(value: str) -> str:
+    """Reduce a user-supplied tag/task number to characters that are safe in
+    a path. Without this, a value like ``../../x`` escapes ``output/`` and
+    writes the generated file anywhere the process can reach.
+    """
+    return _UNSAFE_NAME_CHARS.sub("", value)
+
+
 async def _read_image_blocks(image: UploadFile | None) -> list[dict] | None:
     """Read an optional uploaded image into a Claude content-block list."""
     if image is None or not image.filename:
@@ -169,7 +181,7 @@ async def generate(
     if mode == "tag" and not tag.strip():
         raise HTTPException(status_code=400, detail="במצב 'תיוג ספציפי' חובה להזין מספר תיוג")
 
-    name_key = task_number.strip() or tag.strip()
+    name_key = _safe_name_key(task_number.strip() or tag.strip())
     if not name_key:
         raise HTTPException(status_code=400, detail="חובה להזין מספר משימה או תיוג לשם הקובץ")
 
@@ -227,7 +239,7 @@ async def analyze(
             detail=f"סוג קובץ לא נתמך {suffix!r}. נתמכים: {', '.join(SUPPORTED)}",
         )
 
-    name_key = task_number.strip() or tag.strip() or "full_spec"
+    name_key = _safe_name_key(task_number.strip() or tag.strip()) or "full_spec"
     display_name = f"ANALYSIS_{name_key}.docx"
     # a unique path per run so repeated runs don't overwrite each other's output
     unique_path = f"output/ANALYSIS_{name_key}_{uuid.uuid4().hex[:8]}.docx"
