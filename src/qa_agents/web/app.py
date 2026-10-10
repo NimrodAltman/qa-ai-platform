@@ -11,7 +11,6 @@ Requires ANTHROPIC_API_KEY (loaded from a local .env if present).
 
 from __future__ import annotations
 
-import os
 import shutil
 import tempfile
 import uuid
@@ -29,6 +28,7 @@ from .auth import (
     get_current_user,
     hash_password,
     require_admin,
+    session_secret,
     verify_password,
 )
 from ..base import get_agent, list_agents
@@ -44,10 +44,7 @@ load_dotenv()  # pick up ANTHROPIC_API_KEY from a local .env for convenience
 ensure_default_admin()  # first run only: seeds admin/admin if no users exist
 
 app = FastAPI(title="QA AI Platform")
-app.add_middleware(
-    SessionMiddleware,
-    secret_key=os.environ.get("SESSION_SECRET", "dev-insecure-secret-change-me"),
-)
+app.add_middleware(SessionMiddleware, secret_key=session_secret())
 _STATIC = Path(__file__).parent / "static"
 _XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 _DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"

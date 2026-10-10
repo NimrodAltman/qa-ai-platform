@@ -7,6 +7,7 @@ user id — no server-side session store needed for a single local deployment.
 from __future__ import annotations
 
 import hashlib
+import os
 import secrets
 
 from fastapi import Depends, HTTPException, Request
@@ -14,6 +15,17 @@ from fastapi import Depends, HTTPException, Request
 from . import store
 
 _PBKDF2_ITERATIONS = 200_000
+
+
+def session_secret() -> str:
+    """The key that signs session cookies.
+
+    With no ``SESSION_SECRET`` set, generate a random one per process rather
+    than falling back to a constant: a constant committed to a public repo
+    lets anyone forge a session cookie for any user. The cost of the random
+    default is that sessions don't survive a restart.
+    """
+    return os.environ.get("SESSION_SECRET") or secrets.token_hex(32)
 
 DEFAULT_ADMIN_USERNAME = "admin"
 DEFAULT_ADMIN_PASSWORD = "admin"

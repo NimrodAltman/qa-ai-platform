@@ -10,6 +10,21 @@ def _isolate_db(tmp_path, monkeypatch):
     monkeypatch.setattr(store, "DB_PATH", tmp_path / "runs.db")
 
 
+def test_session_secret_uses_the_configured_value(monkeypatch):
+    monkeypatch.setenv("SESSION_SECRET", "configured-secret")
+    assert auth.session_secret() == "configured-secret"
+
+
+def test_session_secret_is_random_when_unset(monkeypatch):
+    """No constant fallback: a secret committed to a public repo would let
+    anyone forge a session cookie for any user."""
+    monkeypatch.delenv("SESSION_SECRET", raising=False)
+    first = auth.session_secret()
+    second = auth.session_secret()
+    assert first != second
+    assert len(first) >= 32
+
+
 def test_hash_and_verify_round_trip():
     password_hash, salt = auth.hash_password("correct horse battery staple")
     assert auth.verify_password("correct horse battery staple", password_hash, salt)
