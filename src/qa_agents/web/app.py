@@ -55,6 +55,35 @@ if _seeded_admin_password:
 
 app = FastAPI(title="QA AI Platform")
 app.add_middleware(SessionMiddleware, secret_key=session_secret())
+
+# Defence in depth behind the escaping in index.html. 'unsafe-inline' is
+# unavoidable while the UI uses inline handlers, so this does not stop an
+# injected script outright — what it does buy is connect-src (an injected
+# script can't phone home), frame-ancestors (no clickjacking) and form-action.
+_CSP = (
+    "default-src 'self'; "
+    "script-src 'self' 'unsafe-inline'; "
+    "style-src 'self' 'unsafe-inline'; "
+    "img-src 'self' data:; "
+    "connect-src 'self'; "
+    "form-action 'self'; "
+    "frame-ancestors 'none'; "
+    "base-uri 'none'"
+)
+_SECURITY_HEADERS = {
+    "Content-Security-Policy": _CSP,
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+}
+
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    for header, value in _SECURITY_HEADERS.items():
+        response.headers.setdefault(header, value)
+    return response
 _STATIC = Path(__file__).parent / "static"
 _XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 _DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"

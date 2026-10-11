@@ -469,6 +469,15 @@
 </div>
 
 <script>
+  // Every value that comes back from the server goes through this before it
+  // is put into innerHTML — tags, file names, feedback comments and usernames
+  // are all user-supplied, and an admin sees other users' rows.
+  function esc(value){
+    return String(value ?? '').replace(/[&<>"']/g, c => (
+      { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+    ));
+  }
+
   function show(id, btn){
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById(id).classList.add('active');
@@ -504,20 +513,20 @@
       const EXT_LABEL = { '.docx': 'Word', '.xlsx': 'Excel', '.pdf': 'PDF' };
       area.innerHTML = agentsList.map(a => {
         const inputPills = (a.input_formats || [])
-          .map(ext => '<span class="pill">' + (EXT_LABEL[ext] || ext) + '</span>')
+          .map(ext => '<span class="pill">' + esc(EXT_LABEL[ext] || ext) + '</span>')
           .join('');
         return (
           '<div class="agentCard">' +
-            '<h3>' + a.display_name + '</h3>' +
-            '<p>' + a.description + '</p>' +
+            '<h3>' + esc(a.display_name) + '</h3>' +
+            '<p>' + esc(a.description) + '</p>' +
             '<div class="metaLine"><span class="metaLbl">קלט:</span>' + inputPills + '</div>' +
-            '<div class="metaLine"><span class="metaLbl">פלט:</span><span class="pill">' + a.output_format + '</span></div>' +
-            '<div><button type="button" class="btn" onclick="openRunAgentFor(\'' + a.name + '\')">הרץ סוכן ⟵</button></div>' +
+            '<div class="metaLine"><span class="metaLbl">פלט:</span><span class="pill">' + esc(a.output_format) + '</span></div>' +
+            '<div><button type="button" class="btn" onclick="openRunAgentFor(\'' + esc(a.name) + '\')">הרץ סוכן ⟵</button></div>' +
           '</div>'
         );
       }).join('');
     } catch (err) {
-      area.innerHTML = '<div class="empty">שגיאה בטעינת הקטלוג: ' + err.message + '</div>';
+      area.innerHTML = '<div class="empty">שגיאה בטעינת הקטלוג: ' + esc(err.message) + '</div>';
     }
   }
 
@@ -539,13 +548,13 @@
       let rows = '';
       for (const r of recent){
         const when = new Date(r.created_at).toLocaleString('he-IL');
-        rows += '<tr><td>' + r.id + '</td><td>' + when + '</td><td>' + (r.tag || '—') +
-          '</td><td><span class="pill">' + (OUT_LABEL[r.output_type] || r.output_type) +
-          '</span></td><td>' + r.filename + '</td><td><a class="dlbtn" href="/api/runs/' + r.id + '/download">⬇</a></td></tr>';
+        rows += '<tr><td>' + r.id + '</td><td>' + esc(when) + '</td><td>' + esc(r.tag || '—') +
+          '</td><td><span class="pill">' + esc(OUT_LABEL[r.output_type] || r.output_type) +
+          '</span></td><td>' + esc(r.filename) + '</td><td><a class="dlbtn" href="/api/runs/' + r.id + '/download">⬇</a></td></tr>';
       }
       area.innerHTML = '<table><thead><tr><th>#</th><th>תאריך</th><th>תיוג</th><th>סוג תוצר</th><th>קובץ</th><th>הורדה</th></tr></thead><tbody>' + rows + '</tbody></table>';
     } catch (err) {
-      document.getElementById('recentArea').innerHTML = '<div class="empty">שגיאה: ' + err.message + '</div>';
+      document.getElementById('recentArea').innerHTML = '<div class="empty">שגיאה: ' + esc(err.message) + '</div>';
     }
   }
 
@@ -561,11 +570,11 @@
         const when = new Date(r.created_at).toLocaleString('he-IL');
         rows += '<tr>' +
           '<td>' + r.id + '</td>' +
-          '<td>' + when + '</td>' +
-          '<td>' + (r.tag || '—') + '</td>' +
-          '<td>' + (r.task_number || '—') + '</td>' +
-          '<td><span class="pill">' + (OUT_LABEL[r.output_type] || r.output_type) + '</span></td>' +
-          '<td>' + r.filename + '</td>' +
+          '<td>' + esc(when) + '</td>' +
+          '<td>' + esc(r.tag || '—') + '</td>' +
+          '<td>' + esc(r.task_number || '—') + '</td>' +
+          '<td><span class="pill">' + esc(OUT_LABEL[r.output_type] || r.output_type) + '</span></td>' +
+          '<td>' + esc(r.filename) + '</td>' +
           '<td><a class="dlbtn" href="/api/runs/' + r.id + '/download">⬇ הורד</a></td>' +
           '<td><button type="button" class="fbbtn" onclick="openFeedbackFor(' + r.id + ')">💬 פידבק</button></td>' +
           '</tr>';
@@ -575,7 +584,7 @@
         '<th>#</th><th>תאריך</th><th>תיוג</th><th>משימה</th><th>סוג תוצר</th><th>קובץ</th><th>הורדה</th><th>פידבק</th>' +
         '</tr></thead><tbody>' + rows + '</tbody></table>';
     } catch (err) {
-      area.innerHTML = '<div class="empty">שגיאה בטעינת ההיסטוריה: ' + err.message + '</div>';
+      area.innerHTML = '<div class="empty">שגיאה בטעינת ההיסטוריה: ' + esc(err.message) + '</div>';
     }
   }
 
@@ -610,7 +619,7 @@
       const agentsList = await res.json();
       AGENTS_BY_NAME = Object.fromEntries(agentsList.map(a => [a.name, a]));
       agentKindSelect.innerHTML = agentsList
-        .map(a => '<option value="' + a.name + '">' + a.display_name + '</option>')
+        .map(a => '<option value="' + esc(a.name) + '">' + esc(a.display_name) + '</option>')
         .join('');
       syncAgentFields();
     } catch (err) {
@@ -626,7 +635,7 @@
       const res = await fetch('/api/profiles');
       const profilesList = await res.json();
       stdProfileSelect.innerHTML = profilesList
-        .map(p => '<option value="' + p.name + '">' + p.display_name + '</option>')
+        .map(p => '<option value="' + esc(p.name) + '">' + esc(p.display_name) + '</option>')
         .join('');
     } catch (err) {
       stdProfileSelect.innerHTML = '<option value="">שגיאה בטעינת פרופילים</option>';
@@ -656,7 +665,7 @@
       }
       loadRuns();  // keep the Output Center history fresh
     } catch (err) {
-      setStatus('err', '❌ ' + err.message);
+      setStatus('err', '❌ ' + esc(err.message));
     } finally {
       submitBtn.disabled = false;
     }
@@ -754,7 +763,7 @@
     try {
       const runs = await (await fetch('/api/runs')).json();
       runSelect.innerHTML = runs.map(r =>
-        '<option value="' + r.id + '">#' + r.id + ' — ' + r.filename + ' (' + (r.tag || 'כלל האפיון') + ')</option>'
+        '<option value="' + r.id + '">#' + r.id + ' — ' + esc(r.filename) + ' (' + esc(r.tag || 'כלל האפיון') + ')</option>'
       ).join('');
       if (pendingFeedbackRunId) { runSelect.value = pendingFeedbackRunId; pendingFeedbackRunId = null; }
     } catch (err) {
@@ -785,13 +794,13 @@
       for (const f of items.slice(0, 20)){
         const when = new Date(f.created_at).toLocaleString('he-IL');
         const stars = f.rating ? '★'.repeat(f.rating) + '☆'.repeat(5 - f.rating) : '—';
-        rows += '<tr><td>' + when + '</td><td>#' + f.run_id + ' ' + f.run_filename + '</td><td>' + stars +
-          '</td><td>' + (f.categories.join(', ') || '—') + '</td><td>' + (f.comment || '—') +
-          '</td><td>' + STATUS_LABEL[f.status] + '</td></tr>';
+        rows += '<tr><td>' + esc(when) + '</td><td>#' + f.run_id + ' ' + esc(f.run_filename) + '</td><td>' + stars +
+          '</td><td>' + esc(f.categories.join(', ') || '—') + '</td><td>' + esc(f.comment || '—') +
+          '</td><td>' + esc(STATUS_LABEL[f.status]) + '</td></tr>';
       }
       area.innerHTML = '<table><thead><tr><th>תאריך</th><th>הרצה</th><th>דירוג</th><th>קטגוריות</th><th>הערה</th><th>סטטוס</th></tr></thead><tbody>' + rows + '</tbody></table>';
     } catch (err) {
-      area.innerHTML = '<div class="empty">שגיאה: ' + err.message + '</div>';
+      area.innerHTML = '<div class="empty">שגיאה: ' + esc(err.message) + '</div>';
     }
   }
 
@@ -811,14 +820,14 @@
         const statusOpts = STATUS_ORDER.map(s =>
           '<option value="' + s + '"' + (f.status === s ? ' selected' : '') + '>' + STATUS_LABEL[s] + '</option>'
         ).join('');
-        rows += '<tr><td>' + when + '</td><td>#' + f.run_id + ' ' + f.run_filename + '</td><td>' + stars +
-          '</td><td>' + (f.categories.join(', ') || '—') + '</td><td>' + (f.comment || '—') +
+        rows += '<tr><td>' + esc(when) + '</td><td>#' + f.run_id + ' ' + esc(f.run_filename) + '</td><td>' + stars +
+          '</td><td>' + esc(f.categories.join(', ') || '—') + '</td><td>' + esc(f.comment || '—') +
           '</td><td><select onchange="updateFeedbackTriage(' + f.id + ", 'priority', this.value)\">" + prioOpts + '</select>' +
           '</td><td><select onchange="updateFeedbackTriage(' + f.id + ", 'status', this.value)\">" + statusOpts + '</select></td></tr>';
       }
       area.innerHTML = '<table><thead><tr><th>תאריך</th><th>הרצה</th><th>דירוג</th><th>קטגוריות</th><th>הערה</th><th>עדיפות</th><th>סטטוס</th></tr></thead><tbody>' + rows + '</tbody></table>';
     } catch (err) {
-      area.innerHTML = '<div class="empty">שגיאה: ' + err.message + '</div>';
+      area.innerHTML = '<div class="empty">שגיאה: ' + esc(err.message) + '</div>';
     }
   }
 
@@ -892,12 +901,12 @@
       } else {
         let rows = '';
         for (const c of stats.category_counts){
-          rows += '<tr><td>' + c.category + '</td><td>' + c.count + '</td><td>' + (c.action || '—') + '</td></tr>';
+          rows += '<tr><td>' + esc(c.category) + '</td><td>' + c.count + '</td><td>' + esc(c.action || '—') + '</td></tr>';
         }
         area.innerHTML = '<table><thead><tr><th>קטגוריה</th><th>כמות</th><th>פעולה מומלצת</th></tr></thead><tbody>' + rows + '</tbody></table>';
       }
     } catch (err) {
-      document.getElementById('commonIssuesArea').innerHTML = '<div class="empty">שגיאה: ' + err.message + '</div>';
+      document.getElementById('commonIssuesArea').innerHTML = '<div class="empty">שגיאה: ' + esc(err.message) + '</div>';
     }
   }
 
@@ -927,15 +936,15 @@
       for (const a of settings){
         const options = ['<option value=""' + (!a.model ? ' selected' : '') + '>ברירת מחדל</option>']
           .concat(modelsListLoaded.map(m =>
-            '<option value="' + m + '"' + (a.model === m ? ' selected' : '') + '>' + m + '</option>'
+            '<option value="' + esc(m) + '"' + (a.model === m ? ' selected' : '') + '>' + esc(m) + '</option>'
           ))
           .join('');
-        rows += '<tr><td>' + a.display_name + '</td>' +
-          '<td><select onchange="updateAgentModel(\'' + a.name + '\', this.value)">' + options + '</select></td></tr>';
+        rows += '<tr><td>' + esc(a.display_name) + '</td>' +
+          '<td><select onchange="updateAgentModel(\'' + esc(a.name) + '\', this.value)">' + options + '</select></td></tr>';
       }
       area.innerHTML = '<table><thead><tr><th>סוכן</th><th>מודל</th></tr></thead><tbody>' + rows + '</tbody></table>';
     } catch (err) {
-      area.innerHTML = '<div class="empty">שגיאה: ' + err.message + '</div>';
+      area.innerHTML = '<div class="empty">שגיאה: ' + esc(err.message) + '</div>';
     }
   }
 
@@ -954,14 +963,14 @@
         const roleOpts = Object.keys(ROLE_LABEL).map(r =>
           '<option value="' + r + '"' + (u.role === r ? ' selected' : '') + '>' + ROLE_LABEL[r] + '</option>'
         ).join('');
-        rows += '<tr><td>' + u.username + (isMe ? ' (אני)' : '') + '</td>' +
+        rows += '<tr><td>' + esc(u.username) + (isMe ? ' (אני)' : '') + '</td>' +
           '<td><select' + (isMe ? ' disabled' : '') + ' onchange="updateUserRole(' + u.id + ", this.value)\">" + roleOpts + '</select></td>' +
           '<td>' + new Date(u.created_at).toLocaleDateString('he-IL') + '</td>' +
           '<td>' + (isMe ? '—' : '<button type="button" class="fbbtn" onclick="deleteUser(' + u.id + ')">מחק</button>') + '</td></tr>';
       }
       area.innerHTML = '<table><thead><tr><th>שם משתמש</th><th>תפקיד</th><th>נוצר</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>';
     } catch (err) {
-      area.innerHTML = '<div class="empty">שגיאה: ' + err.message + '</div>';
+      area.innerHTML = '<div class="empty">שגיאה: ' + esc(err.message) + '</div>';
     }
   }
 
