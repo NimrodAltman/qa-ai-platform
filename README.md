@@ -91,15 +91,17 @@ python -m uvicorn qa_agents.web.app:app --port 8000
 # open http://localhost:8000
 ```
 
-⚠️ **The first run seeds a known, documented installation credential —
-`admin` / `admin`** — the same way many self-hosted tools ship a first-run
-default (this is a deliberate seed for local/demo setup, not an oversight).
-**Change it before any use beyond your own machine**: log in, go to User
-Management, and either change the password or create a real admin account
-and delete this one.
+⚠️ **The first run creates the `admin` account with a random password,
+printed once to the console** (e.g. `username: admin / password: xK3p...`)
+— save it from there; it is not recoverable afterward except by changing
+it once logged in (User Management → "שינוי הסיסמה שלי"), or by deleting
+`output/runs.db` to reseed on the next start. This is deliberate: a fixed
+published default would let anyone take over any exposed instance.
 
 **Login required.** Every screen sits behind a session (a signed cookie —
-see `SESSION_SECRET` in `.env.example`). Two roles: **admin** sees and
+see `SESSION_SECRET` in `.env.example`; with it unset, the signing key is
+random per process, so restarting the server invalidates existing
+sessions — set it for anything beyond local/demo use). Two roles: **admin** sees and
 controls everything; **user** (QA User) can run agents, browse outputs, and
 submit feedback, but not triage feedback, view Health Dashboard, or reach
 Agent/User Management. **User Management** (admin-only) creates/deletes users
@@ -159,6 +161,11 @@ pytest
 ```
 
 The suite mocks the LLM, so it needs no API key and incurs no cost.
+
+## Security
+
+See [SECURITY.md](SECURITY.md) for what was checked, what was fixed, and
+which limitations are intentional for a local single-user tool.
 
 ## Powered by
 
