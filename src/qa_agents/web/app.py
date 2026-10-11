@@ -240,6 +240,8 @@ async def generate(
         )
     except Exception as exc:  # surface generation failures to the UI
         raise HTTPException(status_code=500, detail=f"ההפקה נכשלה: {exc}")
+    finally:
+        Path(spec_path).unlink(missing_ok=True)
 
     store.add_run(
         tag.strip() or None, task_number.strip(), output_type, str(out),
@@ -287,6 +289,8 @@ async def analyze(
         )
     except Exception as exc:  # surface generation failures to the UI
         raise HTTPException(status_code=500, detail=f"הניתוח נכשל: {exc}")
+    finally:
+        Path(spec_path).unlink(missing_ok=True)
 
     store.add_run(
         tag.strip() or None, task_number.strip(), "analysis", str(out),

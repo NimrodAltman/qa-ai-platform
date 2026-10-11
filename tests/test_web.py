@@ -636,6 +636,62 @@ def test_delete_user():
     assert all(u["id"] != uid for u in client.get("/api/users").json())
 
 
+# ===== Temp file cleanup =====
+
+def test_generate_deletes_the_uploaded_spec_temp_file(tmp_path, monkeypatch):
+    """Every upload was left behind in the OS temp dir forever — confirm the
+    path handed to the agent no longer exists once the request is done."""
+    captured = {}
+
+    def fake_generate(spec_path, tag, output_path, agent=None, scenarios=True, sql=True, profile=None, guidance="", images=None):
+        captured["spec_path"] = spec_path
+        assert Path(spec_path).exists()  # still there while generation runs
+        return write_workbook(StdResult(), tmp_path / "o.xlsx")
+
+    monkeypatch.setattr(webapp, "generate_std", fake_generate)
+    files = {"file": ("spec.docx", b"dummy", "application/octet-stream")}
+    res = client.post("/api/generate", data={"tag": "40100"}, files=files)
+
+    assert res.status_code == 200
+    assert not Path(captured["spec_path"]).exists()
+
+
+def test_generate_deletes_the_temp_file_even_on_failure(tmp_path, monkeypatch):
+    def failing_generate(*a, **k):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(webapp, "generate_std", failing_generate)
+    captured_paths = []
+    real_unlink = Path.unlink
+
+    def spying_unlink(self, *a, **k):
+        captured_paths.append(self)
+        return real_unlink(self, *a, **k)
+
+    monkeypatch.setattr(Path, "unlink", spying_unlink)
+    files = {"file": ("spec.docx", b"dummy", "application/octet-stream")}
+    res = client.post("/api/generate", data={"tag": "40100"}, files=files)
+
+    assert res.status_code == 500
+    assert len(captured_paths) == 1
+    assert not captured_paths[0].exists()
+
+
+def test_analyze_deletes_the_uploaded_spec_temp_file(tmp_path, monkeypatch):
+    captured = {}
+
+    def fake_analyze(spec_path, tag, output_path, agent=None, guidance="", images=None):
+        captured["spec_path"] = spec_path
+        return write_report(AnalysisResult(), tmp_path / "o.docx")
+
+    monkeypatch.setattr(webapp, "generate_analysis", fake_analyze)
+    files = {"file": ("spec.docx", b"dummy", "application/octet-stream")}
+    res = client.post("/api/analyze", data={"tag": "40100"}, files=files)
+
+    assert res.status_code == 200
+    assert not Path(captured["spec_path"]).exists()
+
+
 # ===== Output path traversal =====
 
 def test_generate_keeps_output_inside_the_output_dir(tmp_path, monkeypatch):
